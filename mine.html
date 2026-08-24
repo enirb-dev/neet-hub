@@ -143,7 +143,9 @@
 		>
 		
 		<button onclick="sendMessage()"> Send </button>
+		<button onclick="callUser()"> Call </button>
 		
+		<hr>
 		<button onclick="showRooms()"> Private Chats </button>
 	
 	</div>
@@ -198,6 +200,16 @@
 		</div>
 	</div>
 	
+	<div id="callPage" class="pageStyleB">
+        <h1>Neet Hub Call</h1>
+        <h2 id="callHead"></h2>
+        <h2 id="callPerson"></h2>
+        <p id="callStatus"></p>
+        <button id="callButton"></button>
+        <button id="muteButton" onclick="toggleMute()"> Mute </button>
+        <audio id="remoteAudio" autoplay playsinline></audio>
+    </div>
+	
 	<script type="module">
 		import { initializeApp } from "https://www.gstatic.com/firebasejs/12.1.0/firebase-app.js";
 		
@@ -238,8 +250,22 @@
 		let currentUser = null;
 		let currentUsername = null;
 		let currentRoom = null;
+		let currentRoomData = null;
 		
 		let stopMessageListener = null;
+		
+		
+		let peerConnection = null;
+        let localStream = null;
+        let currentCallId = null;
+        let currentCallData = null;
+        let stopCallListener = null;
+        let stopCallerCandidateListener = null;
+        let stopReceiverCandidateListener = null;
+        let callingBySelf = false;
+        let isMuted = false;
+        let pendingRemoteCandidates = [];
+		
 		
 		const BASE = "";
 		const REF = {
@@ -248,7 +274,8 @@
 			globalChat: BASE + "/messages",
 			frozen: BASE + "/frozen",
 			newReg: BASE + "/reg",
-			rooms: BASE + "/rooms"
+			rooms: BASE + "/rooms",
+			calls: BASE + "/calls"
 		};
 		
 		function GE(element) { return document.getElementById(element); }
@@ -471,6 +498,7 @@
 					GE("loginPage").style.display = "none";
 					GE("chatPage").style.display = "none";
 					GE("adminPage").style.display = "block";
+					GE("callPage").style.display = "none";
 					GE("adminPanel").style.display = "block";
 					return;
 				}
@@ -482,6 +510,7 @@
 				
 				GE("chatPage").style.display = "block";
 				
+				startIncomingCallListener();
 				openRoom(REF.globalChat);
 				
 				setLoginStatus("Logged In.");
@@ -585,10 +614,14 @@
 		}
 		
 		window.logout = async function() {
+			await endCall(true);
+			
 			if (stopMessageListener) {
 				stopMessageListener();
 				stopMessageListener = null;
 			}
+			
+			stopIncomingCallListener();
 			
 			currentUser = null;
 			
@@ -599,6 +632,7 @@
 			GE("chatPage").style.display = "none";
 			GE("adminPage").style.display = "none";
 			GE("loginPage").style.display = "block";
+			GE("callPage").style.display = "none";
 			
 			GE("messages").innerHTML = "";
 			
@@ -620,7 +654,8 @@
 		window.backToGlobal = function() {
 			GE("roomsPage").style.display = "none";
 			GE("chatPage").style.display = "block";
-			GE("cRoom").style.display = "none";
+			
+			if(GE("cRoom")) { GE("cRoom").remove(); }
 			
 			openRoom(REF.globalChat)
 		}
@@ -821,7 +856,7 @@
 			div.style.display = "none";
 		}
 		
-		function openRoom(roomHash) {
+		async function openRoom(roomHash) {
 			GE("roomsPage").style.display = "none";
 			GE("chatPage").style.display = "block";
 			
@@ -831,6 +866,20 @@
 			}
 			
 			currentRoom = roomHash;
+			currentRoomData = null;
+			
+			if (roomHash === REF.globalChat) {
+				GE("callButton").disabled = true;
+			} else {
+				const room = await fetch(roomHash);
+				currentRoomData = room;
+				
+				if (room && room.users && room.users.length >= 2) {
+					GE("callButton").disabled = false;
+				} else {
+					GE("callButton").disabled = true;
+				}
+			}
 			
 			startMessageListener(ref(db, roomHash + "/messages"));
 		}
@@ -869,12 +918,12 @@
 					const latest = messages[messages.length - 1];
 					if (latest) {
 						last.textContent =
-							latest.data.slice(0, 15);
+							"\n" + latest.data.slice(0, 15);
 					} else {
-						last.textContent = "No Messages.";
+						last.textContent = "\nNo Messages.";
 					}
 				} else {
-					last.textContent = "No Messages.";
+					last.textContent = "\nNo Messages.";
 				}
 				
 				const but = CE("button");
@@ -882,8 +931,10 @@
 				but.onclick = function() { openRoom(REF.rooms + "/" + room.uid); }
 				
 				const hrk = CE("hr");
+				const brk = CE("br");
 				
-				div.appendChild(name); div.appendChild(last); div.appendChild(hrk); div.appendChild(but);
+				div.appendChild(name); div.appendChild(last); div.appendChild(brk);
+				div.appendChild(but); div.appendChild(hrk);
 				cont.appendChild(div);
 			}
 		}
@@ -895,7 +946,461 @@
 				if (event.key === "Enter") { sendMessage(); }
 			}
 		);
-	
+		
+		
+		
+		const rtcConfiguration = {
+            iceServers: [
+                {
+                    urls:
+                        "stun:stun.l.google.com:19302"
+                },
+                {
+                    urls:
+                        "stun:stun1.l.google.com:19302"
+                }
+            ]
+        };
+		
+		
+		function showCallPage(
+			heading,
+			person,
+			buttonText
+		) {
+			GE("chatPage").style.display = "none";
+			GE("roomsPage").style.display = "none";
+			GE("callPage").style.display = "block";
+			GE("callHead").textContent = heading;
+			GE("callPerson").textContent = person;
+			GE("callStatus").textContent = "";
+			
+			const button = GE("callButton");
+			button.textContent = buttonText;
+			button.disabled = false;
+		}
+
+		function hideCallPage() {
+			GE("callPage").style.display = "none";
+			GE("chatPage").style.display = "block";
+		}
+		
+        async function getOtherUser() {
+            if ( !currentRoomData || !currentRoomData.users ) { return null; }
+			
+            const otherUID = currentRoomData.users.find( uid => uid !== currentUser.uid );
+            if (!otherUID) { return null; }
+			
+            const userData = await fetch( REF.users + "/" + otherUID );
+            if (!userData) { return null; }
+			
+            return {
+                uid: otherUID,
+                username: userData.username
+            };
+        }
+
+		
+        window.callUser =
+            async function() {
+                if (!currentUser) { return; }
+				
+                if (!currentRoomData) {
+                    alert("Calling is available only in private chats.");
+                    return;
+                }
+				
+                if (currentRoomData.users.length !== 2) {
+                    alert("Calling currently supports exactly 2 users per room.");
+                    return;
+                }
+				
+                if (peerConnection) { return; }
+				
+                const otherUser = await getOtherUser();
+
+                if (!otherUser) {
+                    alert("Could not find the other user.");
+                    return;
+                }
+				
+                const existingCalls = await fetch(REF.calls);
+				
+                if (existingCalls) {
+                    for (const call of Object.values(existingCalls)) {
+                        if (call.status === "active" || call.status === "ringing") {
+                            if (call.caller === otherUser.uid || call.receiver === otherUser.uid) {
+                                alert("That user is already on a call.");
+                                return;
+                            }
+                        }
+                    }
+                }
+				
+                callingBySelf = true;
+				
+                showCallPage("Outgoing Call",
+					otherUser.username,
+                    "End"
+                );
+				
+                GE("callStatus").textContent = "Calling...";
+				
+                const callRef =
+                    push(ref(db, REF.calls));
+				
+                currentCallId = callRef.key;
+                currentCallData = {
+					caller: currentUser.uid,
+                    callerName: currentUsername,
+                    receiver: otherUser.uid,
+                    receiverName: otherUser.username,
+                    room: currentRoom,
+                    status: "ringing",
+                    createdAt: Date.now()
+                };
+				
+                await set(callRef, currentCallData);
+				
+				
+                await createPeerConnection();
+                
+                const offer = await peerConnection.createOffer();
+                await peerConnection.setLocalDescription(offer);
+				
+                await set(
+					ref(db, REF.calls + "/" + currentCallId + "/offer"),
+                    {
+                        type: offer.type,
+                        sdp: offer.sdp
+                    }
+                );
+				
+                stopCallListener = onValue(
+                        ref(db, REF.calls + "/" + currentCallId),
+                        async function(snapshot) {
+                            const data = snapshot.val();
+                            if (!data) { return; }
+							
+							if (data.status === "rejected") {
+								GE("callStatus").textContent = "Call rejected.";
+                                await cleanupCall(false);
+                                return;
+                            }
+							
+                            if (data.status === "ended") {
+                                GE("callStatus").textContent = "Call ended.";
+                                await cleanupCall(false);
+                                return;
+                            }
+							
+                            if (data.answer && peerConnection.currentRemoteDescription === null) {
+                                try {
+                                    await peerConnection.setRemoteDescription(
+                                            new RTCSessionDescription(data.answer)
+									);
+									
+                                    GE("callStatus").textContent = "Connected";
+                                } catch (err) { console.error(err); }
+                            }
+                        }
+                    );
+                
+                stopCallerCandidateListener =
+                    onValue(
+                        ref(db, REF.calls + "/" + currentCallId + "/receiverCandidates"),
+                        async function(snapshot) {
+                            const data = snapshot.val();
+
+                            if (!data) { return; }
+							
+                            for (const candidate of Object.values(data)) {
+                                try {
+                                    await peerConnection.addIceCandidate(
+                                            new RTCIceCandidate(candidate)
+									);
+                                } catch (err) { console.error("ICE error:", err); }
+                            }
+                        }
+                    );
+				
+                GE("callButton").onclick =
+                    function() { endCall(); };
+            };
+		
+		
+        async function createPeerConnection() {
+            peerConnection = new RTCPeerConnection(rtcConfiguration);
+			
+            localStream = await navigator.mediaDevices.getUserMedia({ audio: true, video: false });
+			
+            for ( const track of localStream.getTracks() ) { peerConnection.addTrack(track, localStream); }
+			
+            peerConnection.ontrack =
+                function(event) {
+                    const audio = GE("remoteAudio");
+					
+                    audio.srcObject = event.streams[0];
+                    audio.play().catch(
+                            err =>
+                                console.log("Audio autoplay:", err)
+					);
+                };
+			
+            peerConnection.onicecandidate =
+                async function(event) {
+                    if ( !event.candidate || !currentCallId ) { return; }
+					
+                    const candidateRef =
+                        push(
+                            ref(
+                                db,
+                                REF.calls + "/" + currentCallId + "/" +
+                                ( callingBySelf ? "callerCandidates" : "receiverCandidates" )
+                            )
+                        );
+					
+                    await set(candidateRef, event.candidate.toJSON());
+                };
+            
+            peerConnection.onconnectionstatechange =
+                function() {
+                    if (!peerConnection) { return; }
+					
+                    const state = peerConnection.connectionState;
+					
+                    console.log("WebRTC state:", state);
+					
+                    if (state === "connected") {
+                        GE("callStatus").textContent = "Connected";
+                        GE("muteButton").style.display = "inline-block";
+					}
+					
+                    if (state === "disconnected") { GE("callStatus").textContent = "Connection interrupted."; }
+					
+                    if (state === "failed") { GE("callStatus").textContent = "Connection failed."; }
+                    if (state === "closed") { endCall(); }
+                };
+        }
+		
+        function startIncomingCallListener() {
+            stopIncomingCallListener();
+			
+            if (!currentUser) { return; }
+			
+            stopCallListener =
+                onValue(
+                    ref(db, REF.calls),
+                    async function(snapshot) {
+                        const calls = snapshot.val();
+						
+                        if (!calls) { return; }
+						
+                        for ( const [callId, call] of Object.entries(calls) ) {
+                            if (call.receiver !== currentUser.uid) { continue; }
+							
+                            if (call.status !== "ringing") { continue; }
+                            if (currentCallId) { continue; }
+							
+                            currentCallId = callId;
+                            currentCallData = call;
+                            callingBySelf = false;
+							
+                           showCallPage("Incoming Call", call.callerName, "Accept");
+							
+							GE("callStatus").textContent = "Incoming call...";
+							const rejectButton = createRejectButton();
+							rejectButton.style.display = "inline-block";
+							GE("callButton").onclick = function() { acceptCall(); };
+                            
+                            break;
+                        }
+                    }
+                );
+        }
+		
+        function stopIncomingCallListener() {
+            if (stopCallListener) {
+                stopCallListener();
+                stopCallListener = null;
+            }
+        }
+		
+        async function acceptCall() {
+            if (!currentCallId || !currentCallData) { return; }
+			
+            try {
+                GE("callButton").disabled = true;
+                GE("callStatus").textContent = "Connecting...";
+                
+                await createPeerConnection();
+				
+				const call = await fetch(REF.calls + "/" + currentCallId);
+                if (!call || !call.offer) {
+                    throw new Error("Call offer not found.");
+                }
+				
+                await peerConnection.setRemoteDescription(new RTCSessionDescription(call.offer));
+				const answer = await peerConnection.createAnswer();
+				await peerConnection.setLocalDescription(answer);
+				
+                await update(
+                    REF.calls + "/" + currentCallId + "/answer",
+                    {
+                        type: answer.type,
+                        sdp: answer.sdp
+                    }
+                );
+				
+                await update(REF.calls + "/" + currentCallId + "/status", "active");
+				
+                stopReceiverCandidateListener =
+                    onValue(
+                        ref(db, REF.calls + "/" + currentCallId + "/callerCandidates"),
+                        async function(snapshot) {
+                            const data =
+                                snapshot.val();
+							
+                            if (!data) { return; }
+							
+                            for ( const candidate of Object.values(data) ) {
+                                try {
+									await peerConnection.addIceCandidate(new RTCIceCandidate(candidate));
+								} catch (err) { console.error("ICE error:", err); }
+                            }
+                        }
+                    );
+				
+                GE("callHead").textContent = "In Call";
+                GE("callButton").disabled = false;
+                GE("callButton").textContent = "End";
+                GE("callButton").onclick = function() { endCall(); };
+            }
+            catch (err) {
+                console.error("Accept call error:", err);
+                GE("callStatus").textContent = "Could not connect: " + err.message;
+                await endCall();
+            }
+        }
+        
+        async function rejectCall() {
+            if (!currentCallId) { return; }
+			
+            await update(REF.calls + "/" + currentCallId + "/status", "rejected");
+			
+            await cleanupCall(true);
+        }
+		
+		
+        window.endCall =
+            async function(silent = false) {
+                if (!currentCallId) {
+                    if (!silent) { hideCallPage(); }
+                    return;
+                }
+				
+                try {
+                    if (currentCallData) {
+                        await update(REF.calls + "/" + currentCallId + "/status", "ended" );
+                    }
+                }
+                catch (err) { console.error("End call Firebase error:", err); }
+				
+                await cleanupCall(!silent);
+            };
+		
+        async function cleanupCall(returnToChat = true) {
+			const rejectButton = GE("rejectCallButton");
+			if (rejectButton) { rejectButton.style.display = "none"; }
+			
+            if ( stopCallerCandidateListener ) {
+                stopCallerCandidateListener();
+                stopCallerCandidateListener = null;
+            }
+			
+            if ( stopReceiverCandidateListener ) {
+                stopReceiverCandidateListener();
+                stopReceiverCandidateListener = null;
+            }
+            
+            if (peerConnection) {
+                peerConnection.close();
+                peerConnection = null;
+			}
+            
+            if (localStream) {
+                for ( const track of localStream.getTracks() ) { track.stop(); }
+                localStream = null;
+            }
+			
+            GE("remoteAudio").srcObject = null;
+            
+            currentCallId = null;
+			currentCallData = null;
+            callingBySelf = false;
+            isMuted = false;
+			
+            GE("muteButton").style.display = "none";
+            GE("muteButton").textContent = "Mute";
+			
+            if (returnToChat) { hideCallPage(); }
+        }
+		
+        window.toggleMute =
+            function() {
+                if (!localStream) { return; }
+				
+                const tracks = localStream.getAudioTracks();
+                if (!tracks.length) { return; }
+				
+                isMuted = !isMuted;
+                for ( const track of tracks ) { track.enabled = !isMuted; }
+				
+                GE("muteButton").textContent = isMuted ? "Unmute" : "Mute";};
+		
+		
+        function createRejectButton() {
+            let button = GE("rejectCallButton");
+			
+            if (button) { return button; }
+			
+            button = CE("button");
+            button.id = "rejectCallButton";
+            button.textContent = "Reject";
+			
+            button.onclick =
+                function() { rejectCall(); };
+			
+            GE("callPage").insertBefore(
+					button,
+                    GE("muteButton")
+                );
+			
+            return button;
+        }
+		
+        const originalShowCallPage = showCallPage;
+        
+        GE("callButton").disabled = true;
+		
+		/*
+		currentRoom.addEventListener(
+			"currentRoom.call.active.changed",
+			function(event) {
+				callPage.style.display = "block";
+				chatPage.style.display = "none";
+				
+				GE("callHead").textContent = (callingBySelf = true) ? "Outgoing Call" : "Incoming Call";
+				GE("callPerson").textContent = currentRoom.name;
+				
+				GE("callButton").textContent = (callingBySelf = true) ? "End" : "Accept";
+				GE("callButton").onclick = function() {
+					// what?
+				}
+			}
+		);
+		*/
+		
 		
 	</script>
 </body>
