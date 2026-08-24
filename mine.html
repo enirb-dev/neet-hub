@@ -61,6 +61,7 @@
 		#emergencyBubble {
 			position: fixed;
 			right: 20px;
+			bottom: 50px;
 			
 			width: 55px;
 			height: 55px;
@@ -104,7 +105,7 @@
 		<input
 			id = "username"
 			type = "text"
-			placeholder = "Username"
+			placeholder = "username"
 			autocomplete = "off"
 		>
 		
@@ -142,6 +143,18 @@
 		>
 		
 		<button onclick="sendMessage()"> Send </button>
+		
+		<button onclick="showRooms()"> Private Chats </button>
+	
+	</div>
+	
+	<div id="roomsPage" class="pageStyleB">
+		<button onclick="backToGlobal()"> Back </button>
+		<h1> Private Chats </h1>
+		<hr>
+		<button onclick="createRoom()"> Create Room </button>
+		
+		<div id="rooms"></div>
 	</div>
 	
 	<div id="adminPage" class="pageStyleB">
@@ -198,6 +211,15 @@
 			remove
 		} from "https://www.gstatic.com/firebasejs/12.1.0/firebase-database.js";
 		
+		import {
+			getAuth,
+			createUserWithEmailAndPassword,
+			signInWithEmailAndPassword,
+			signOut,
+			onAuthStateChanged
+		} from "https://www.gstatic.com/firebasejs/12.1.0/firebase-auth.js";
+		
+		
 		const firebaseConfig = {
 			apiKey: "AIzaSyAZZ7Rima-d6qFOUeiWKykUI_5yqW4vKig",
 			authDomain: "neet-hub-33eef.firebaseapp.com",
@@ -211,20 +233,27 @@
 		
 		const app = initializeApp(firebaseConfig);
 		const db = getDatabase(app);
+		const auth = getAuth(app);
 		
 		let currentUser = null;
+		let currentUsername = null;
+		let currentRoom = null;
+		
 		let stopMessageListener = null;
 		
 		const BASE = "";
 		const REF = {
 			secure: BASE + "/secure",
 			users: BASE + "/users",
-			messages: BASE + "/messages",
+			globalChat: BASE + "/messages",
 			frozen: BASE + "/frozen",
-			newReg: BASE + "/reg"
+			newReg: BASE + "/reg",
+			rooms: BASE + "/rooms"
 		};
 		
 		function GE(element) { return document.getElementById(element); }
+		function CE(element) { return document.createElement(element); }
+		function usernameToEmail(uname) { return uname + "@neethub.enirb.in" }
 		
 		async function update(key, value) {
 			await set(ref(db, key), value);
@@ -237,6 +266,14 @@
 			}
 			
 			return null;
+		}
+		
+		function waitForClick(button) {
+			return new Promise(function(resolve) {
+				button.onclick = function() {
+					resolve();
+				};
+			});
 		}
 		
 		
@@ -295,7 +332,7 @@
 		});
 		
 		window.clearhistory = async function() {
-			await update(REF.messages, {});
+			await update(REF.globalChat, {});
 		};
 		
 		window.emergency = function() {
@@ -321,6 +358,8 @@
 			GE("password").value = "";
 			
 			GE("loginPage").style.display = "block";
+			
+			logout();
 		};
 		
 		window.addEventListener("deviceorientation", function(event) {
@@ -336,11 +375,11 @@
 		});
 		
 		window.register = async function() {
-			const user = GE("username").value.trim();
+			const user = GE("username").value.trim().toLowerCase();
 			const pass = GE("password").value.trim();
 			
 			if (!user || !pass) {
-				setLoginStatus("Enter Username and Password.");
+				setLoginStatus("Enter username and Password.");
 				return;
 			}
 			
@@ -349,144 +388,203 @@
 				return;
 			}
 			
-			const existing =
-				await fetch(
-					REF.secure + "/" + user
+			if (
+                !/^[a-z0-9_]{3,20}$/.test(user)
+            ) {
+                setLoginStatus(
+                    "username must contain only letters, numbers or _. 3-20 characters."
+                );
+                return;
+            }
+			
+			const email = usernameToEmail(user);
+			
+			try {
+				const cred = await createUserWithEmailAndPassword(
+					auth,
+					email,
+					pass
 				);
-			
-			if (existing != null) {
-				setLoginStatus("Username Already Exists.");
-				return;
+				
+				currentUser = cred.user;
+				currentUsername = user;
+				
+				await update(
+					REF.users + "/" + currentUser.uid,
+					
+					{
+						username: currentUsername,
+						createdAt: Date.now()
+					}
+					
+				);
+				
+				setLoginStatus("Account Created! You can now login.");
+			} catch (err) {
+				setLoginStatus("Error Registering User: " + err.message);
 			}
-			
-			await update(
-				REF.secure + "/" + user,
-				pass
-			);
-			
-			
-			await update(
-				REF.users + "/" + user,
-				{
-					username: user
-				}
-			);
-			
-			setLoginStatus("Account Created! You can now login.");
-		
 		};
 		
 		
 		window.login = async function() {
 			emergencyTriggered = false;
 			
-			const user = GE("username").value.trim();
+			const user = GE("username").value.trim().toLowerCase();
 			const pass = GE("password").value.trim();
 			
 			if (!user || !pass) {
-				setLoginStatus("Enter Username and Password.");
+				setLoginStatus("Enter username and Password.");
 				return;
 			}
 			
-			if ((await fetch(REF.frozen) === true) && (user !== "ADMIN")) {
+			if ((await fetch(REF.frozen) === true) && (user !== "admin")) {
 				setLoginStatus("System Frozen by Admin.");
 				return;
 			}
+			const email = usernameToEmail(user)
 			
-			const stored = await fetch(REF.secure + "/" + user);
-			
-			if (stored !== null && stored === pass) {
-				if (user == "ADMIN") {
+			try {
+				await signInWithEmailAndPassword(
+					auth,
+					email,
+					pass
+				);
+				
+			} catch (err) {
+				setLoginStatus("Error Loggin In: " + err.message);
+			}
+		}
+		
+		onAuthStateChanged(
+			auth,
+			async function(user) {
+				if (user) {
+					currentUser = user;
+					const data = await fetch(REF.users + "/" + user.uid);
+					
+					if (data) {
+						currentUsername = data.username;
+					}
+				
+				
+				if (currentUsername == "admin") {
 					GE("loginPage").style.display = "none";
+					GE("chatPage").style.display = "none";
 					GE("adminPage").style.display = "block";
 					GE("adminPanel").style.display = "block";
 					return;
 				}
-				currentUser = user;
 				
-				GE("currentUser").textContent = user;
+				GE("currentUser").textContent = currentUsername;
+				
 				GE("loginPage").style.display = "none";
+				GE("adminPage").style.display = "none";
+				
 				GE("chatPage").style.display = "block";
 				
-				startMessageListener();
-			} else {
-				setLoginStatus("Invalid Username or Password.");
+				openRoom(REF.globalChat);
+				
+				setLoginStatus("Logged In.");
+				
+				} else {
+					currentUser = null;
+					currentUsername = null;
+					if (stopMessageListener) {
+						stopMessageListener();
+						stopMessageListener = null;
+					}
+				}
 			}
-		}
+		);
 		
 		
 		window.sendMessage = async function() {
-			if (!currentUser) {
+			if (!currentUser || !currentRoom) {
 				return;
 			}
 			
 			const input = GE("messageInput");
-			const text = input.value.trim()
+			const text = input.value.trim();
 			
-			if (!text) { return; }
+			if (!text) {
+				return;
+			}
 			
-			const messageRef = 
-				push(
-					ref(db, REF.messages)
-				);
+			const message = {
+				sender: currentUser.uid,
+				senderName: currentUsername,
+				type: "text",
+				data: text,
+				tstamp: Date.now()
+			};
 			
-			await set(messageRef,
-				{
-					sender: currentUser,
-					text: text,
-					tstamp: Date.now()
-				}
+			const messageRef = push(
+				ref(db, currentRoom + "/messages")
 			);
+			
+			await set(messageRef, message);
 			
 			input.value = "";
 		}
 		
 		
-		function startMessageListener() {
-			const messagesRef = 
-				ref(db, REF.messages)
-		
+		function startMessageListener(messageRef) {
+			
 			stopMessageListener =
 				onValue(
-					messagesRef,
-					(snap) => {
-						const cont = GE("messages");
+					messageRef,
+					function(snap) {
 						
+						const cont = GE("messages");
 						cont.innerHTML = "";
 						
 						const data = snap.val();
 						
-						if (!data) { return; }
+						if (!data) {
+							return;
+						}
 						
 						const messages = Object.values(data);
 						
 						messages.sort(
-							(a,b) => a.tstamp - b.tstamp
+							(a, b) => a.tstamp - b.tstamp
 						);
 						
-						for ( const message of messages ) {
-							const div = document.createElement("div");
+						for (const message of messages) {
+							const div = CE("div");
 							div.className = "message";
 							
-							const name = document.createElement("b");
+							const name = CE("b");
+							name.textContent =
+								message.senderName || "Unknown";
 							
-							name.textContent = message.sender;
+							let dat;
+							if (message.type == "text") {
+								dat = CE("span");
+								dat.textContent = message.data;
+							} else if (message.type == "image") {
+								dat = CE("img");
+								dat.src = message.data;
+							} else if (message.type == "video") {
+								dat = CE("video");
+								dat.src = message.data;
+								dat.controls = true;
+							} else {
+								continue;
+							}
 							
-							const text = document.createElement("span");
-							text.textContent = message.text;
-							
-							div.appendChild(name); div.appendChild(text);
+							div.appendChild(name);
+							div.appendChild(dat);
 							
 							cont.appendChild(div);
 						}
 						
 						cont.scrollTop = cont.scrollHeight;
-						
 					}
 				);
 		}
 		
-		window.logout = function() {
+		window.logout = async function() {
 			if (stopMessageListener) {
 				stopMessageListener();
 				stopMessageListener = null;
@@ -508,6 +606,7 @@
 			GE("password").value = "";
 			
 			setLoginStatus("");
+			await signOut(auth);
 			
 		};
 		
@@ -516,6 +615,14 @@
 			  child.style.display = "none";
 			});
 			GE("adminPanel").style.display = "block";
+		}
+		
+		window.backToGlobal = function() {
+			GE("roomsPage").style.display = "none";
+			GE("chatPage").style.display = "block";
+			GE("cRoom").style.display = "none";
+			
+			openRoom(REF.globalChat)
 		}
 		
 		window.manageAccounts = async function() {
@@ -532,23 +639,23 @@
 				return;
 			}
 			
-			const accounts = Object.keys(data);
+			const accounts = Object.entries(data);
 			
-			for (const account of accounts) {
-				if (account == "ADMIN") { continue; }
-				const div = document.createElement("div");
+			for (const [uid, account] of accounts) {
+				if (account.username == "admin") { continue; }
+				const div = CE("div");
 				div.className = "account";
 				
-				const name = document.createElement("span");
-				name.textContent = account;
+				const name = CE("span");
+				name.textContent = account.username;
 				
-				const brk = document.createElement("br");
-				const hrk = document.createElement("hr");
-				const but = document.createElement("button");
+				const brk = CE("br");
+				const hrk = CE("hr");
+				const but = CE("button");
 				
 				but.textContent = "Delete";
 				but.onclick = function() {
-					deleteAccount(account);
+					deleteAccount(uid);
 				};
 				
 				div.appendChild(name);
@@ -568,7 +675,7 @@
 			const cont = GE("history");
 			cont.innerHTML = "";
 			
-			const data = await fetch(REF.messages);
+			const data = await fetch(REF.globalChat);
 			
 			if (!data) {
 				cont.textContent = "No history Yet.";
@@ -578,23 +685,36 @@
 			const history = Object.entries(data);
 			
 			for (const [msgID, msgData] of history) {
-				const div = document.createElement("div");
+				const div = CE("div");
 				div.className = "historyEntry";
 				
-				const brk = document.createElement("br");
-				const hrk = document.createElement("hr");
+				const brk = CE("br");
+				const hrk = CE("hr");
 				
-				const name = document.createElement("b");
-				name.textContent = msgData.sender;
+				const name = CE("b");
+				name.textContent = msgData.senderName;
 				
-				const msgText = document.createElement("p");
-				msgText.textContent = msgData.text;
+				let dat;
+				if (msgData.type == "text") {
+					dat = CE("p");
+					dat.textContent = msgData.data;
+				}
 				
-				const stamp = document.createElement("p");
+				if (msgData.type == "image") {
+					dat = CE("img");
+					dat.src = msgData.data;
+				}
+				
+				if (msgData.type == "video") {
+					dat = CE("video");
+					dat.src = msgData.data;
+				}
+				
+				const stamp = CE("p");
 				const date = new Date(msgData.tstamp);
 				stamp.textContent = date.toLocaleString();
 				
-				const but = document.createElement("button");
+				const but = CE("button");
 				
 				but.textContent = "Delete";
 				but.onclick = function() {
@@ -602,7 +722,7 @@
 				};
 				
 				div.appendChild(name);
-				div.appendChild(msgText);
+				div.appendChild(dat);
 				div.appendChild(stamp);
 				div.appendChild(but); div.appendChild(hrk);
 				
@@ -617,7 +737,7 @@
 		}
 		
 		async function deleteMessage(msgID) {
-			await remove(ref(db, REF.messages + "/" + msgID));
+			await remove(ref(db, REF.globalChat + "/" + msgID));
 			managehistory();
 		}
 		
@@ -627,6 +747,146 @@
 			if (hash == 3) { await update(REF.frozen, true); }
 			if (hash == 4) { await update(REF.frozen, false); }
 		};
+		
+		window.createRoom = async function() {
+			const div = CE("div");
+			div.id = "cRoom";
+			div.className = "pageStyleB";
+			
+			const room = {
+				uid: null,
+				users: [],
+				messages: {},
+				name: null
+			}
+			
+			const txt = CE("span");
+			txt.textContent = "Enter Room Name:"
+			
+			const inp = CE("input");
+			inp.id = "rInput";
+			
+			const but = CE("button");
+			but.textContent = "Ok";
+			
+			div.appendChild(txt); div.appendChild(inp); div.appendChild(but);
+			div.style.display = "block";
+			
+			GE("roomsPage").appendChild(div);
+			
+			await waitForClick(but);
+			
+			room.name = inp.value.trim();
+			
+			txt.textContent = "Enter Member Username (leave blank to finish):";
+			inp.value = "";
+			
+			while (true) {
+				await waitForClick(but);
+				const memberName = inp.value.trim().toLowerCase();
+				
+				if (memberName == "") {
+					break;
+				}
+				
+				const users = await fetch(REF.users);
+				let found = false;
+				
+				if (users) {
+					for (const [uid, user] of Object.entries(users)) {
+						if (user.username == memberName) {
+							room.users.push(uid);
+							found = true;
+							break;
+						}
+					}
+				}
+				
+				if (!found) {
+					txt.textContent = "User not found. Enter Member Username:";
+					inp.value = "";
+					continue;
+				}
+				
+				txt.textContent = "Enter Member Username (leave blank to finish):";
+				inp.value = "";
+			}
+			
+			room.users.push(currentUser.uid);
+			
+			const roomRef = push(ref(db, REF.rooms));
+			room.uid = roomRef.key;
+			
+			await set(roomRef, room);
+			div.style.display = "none";
+		}
+		
+		function openRoom(roomHash) {
+			GE("roomsPage").style.display = "none";
+			GE("chatPage").style.display = "block";
+			
+			if (stopMessageListener) {
+				stopMessageListener();
+				stopMessageListener = null;
+			}
+			
+			currentRoom = roomHash;
+			
+			startMessageListener(ref(db, roomHash + "/messages"));
+		}
+		
+		window.showRooms = async function() {
+			GE("chatPage").style.display = "none";
+			GE("roomsPage").style.display = "block";
+			
+			const rooms = await fetch(REF.rooms);
+			
+			const cont = GE("rooms");
+			cont.innerHTML = "";
+			
+			if (!rooms) {
+				cont.textContent = "No Rooms.";
+				return;
+			}
+			
+			const data = Object.values(rooms);
+			
+			for (const room of data) {
+				if (!room.users || !room.users.includes(currentUser.uid)) { continue; }
+				
+				const div = CE("div");
+				
+				const name = CE("b");
+				name.textContent = room.name || "Private Chat";
+				
+				const last = CE("span");
+				if (room.messages) {
+					const messages = Object.values(room.messages);
+					messages.sort(
+						(a, b) => a.tstamp - b.tstamp
+					);
+					
+					const latest = messages[messages.length - 1];
+					if (latest) {
+						last.textContent =
+							latest.data.slice(0, 15);
+					} else {
+						last.textContent = "No Messages.";
+					}
+				} else {
+					last.textContent = "No Messages.";
+				}
+				
+				const but = CE("button");
+				but.textContent = "Open";
+				but.onclick = function() { openRoom(REF.rooms + "/" + room.uid); }
+				
+				const hrk = CE("hr");
+				
+				div.appendChild(name); div.appendChild(last); div.appendChild(hrk); div.appendChild(but);
+				cont.appendChild(div);
+			}
+		}
 		
 		
 		GE("messageInput").addEventListener(
