@@ -452,7 +452,7 @@
 				return;
 			}
 			
-			GE.messages.innerHTML = `${alpha}, ${beta}, ${gamma}`;
+			GE("messages").innerHTML = `α = ${alpha}<br>β = ${beta}<br>γ = ${gamma}`;
 			if (
 				(beta !== null && Math.abs(beta) > 150) ||
 				(alpha !== null && Math.abs(alpha) > 150) ||
