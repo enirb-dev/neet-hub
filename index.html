@@ -265,7 +265,8 @@
 		const db = getDatabase(app);
 		const auth = getAuth(app);
 		
-		setPersistence(auth, inMemoryPersistence).catch(err => console.error("Persistence error:", err));
+		await setPersistence(auth, inMemoryPersistence).catch(err => console.error("Persistence error:", err));
+		await signOut(auth);
 		
 		let currentUser = null;
 		let currentUsername = null;
@@ -393,6 +394,18 @@
 			emergencyBubble.releasePointerCapture(event.pointerId);
 			
 			if (!moved) {
+				emergency();
+			}
+		});
+		
+		document.addEventListener("visibilityChange", function() {
+			if (document.hidden && currentUser) {
+				emergency();
+			}
+		});
+		
+		window.addEventListener("blur", function() {
+			if (currentUser) {
 				emergency();
 			}
 		});
