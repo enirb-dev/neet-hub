@@ -107,7 +107,7 @@
 	<div id="loginPage">
 		<h1> Neet Hub </h1>
 		<h2> Login </h2>
-		<h3> Stamp: 001 </h3>
+		<h3> Stamp: 002 </h3>
 		
 		<input
 			id = "username"
@@ -399,7 +399,7 @@
 			}
 		});
 		
-		document.addEventListener("visibilityChange", function() {
+		document.addEventListener("visibilitychange", function() {
 			if (document.hidden && currentUser) {
 				emergency();
 			}
@@ -456,8 +456,7 @@
 			GE("messages").innerHTML = `α = ${alpha}<br>β = ${beta}<br>γ = ${gamma}`;
 			if (
 				(beta !== null && Math.abs(beta) > 150) ||
-				(alpha !== null && Math.abs(alpha) > 150) ||
-				(gamma !== null && Math.abs(gamma) > 150)
+				(gamma !== null && Math.abs(gamma) > 75 && Math.abs(beta) < 30)
 			) {
 				Log("Orientation Logout!", 0, 1);
 				emergency();
