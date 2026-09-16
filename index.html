@@ -452,7 +452,7 @@
 				return;
 			}
 			
-			console.log(alpha, beta, gamma);
+			GE.messages.innerHTML = `${alpha}, ${beta}, ${gamma}`;
 			if (
 				(beta !== null && Math.abs(beta) > 150) ||
 				(alpha !== null && Math.abs(alpha) > 150) ||
