@@ -110,7 +110,7 @@
 	<div id="loginPage">
 		<h1> Neet Hub </h1>
 		<h2> Login </h2>
-		<h3> Stamp: 003 </h3>
+		<h3> Stamp: 004 </h3>
 		
 		<input
 			id = "username"
@@ -462,6 +462,29 @@
 				(gamma !== null && Math.abs(gamma) > 75 && Math.abs(beta) < 30)
 			) {
 				Log("Orientation Logout!", 0, 1);
+				emergency();
+			}
+		});
+		
+		window.addEventListener("devicemotion", function(event) {
+			const acc = event.accelerationIncludingGravity;
+			if (!acc) return;
+			
+			const x = acc.x;
+			const y = acc.y;
+			const z = acc.z;
+			
+			if (debugEl) {
+				debugEl.textContent = `X: ${x?.toFixed(1) ?? "null"} | Y: ${y?.toFixed(1) ?? "null"} | Z: ${z?.toFixed(1) ?? "null"}`;
+			}
+			
+			if (x === null || y === null || z === null) return;
+			
+			const isFacedown = z < -5.0;
+			const isTiltedSideways = Math.abs(x) > 8.0 && Math.abs(z) < 4.0;
+			
+			if (isFacedown || isTiltedSideways) {
+				Log("Motion Emergency Triggered!", 0, 1);
 				emergency();
 			}
 		});
