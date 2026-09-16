@@ -110,7 +110,7 @@
 	<div id="loginPage">
 		<h1> Neet Hub </h1>
 		<h2> Login </h2>
-		<h3> Stamp: 004 </h3>
+		<h3> Stamp: 005 </h3>
 		
 		<input
 			id = "username"
@@ -474,9 +474,7 @@
 			const y = acc.y;
 			const z = acc.z;
 			
-			if (debugEl) {
-				debugEl.textContent = `X: ${x?.toFixed(1) ?? "null"} | Y: ${y?.toFixed(1) ?? "null"} | Z: ${z?.toFixed(1) ?? "null"}`;
-			}
+			GE("sensorDebug").textContent = `X: ${x?.toFixed(1) ?? "null"} | Y: ${y?.toFixed(1) ?? "null"} | Z: ${z?.toFixed(1) ?? "null"}`;
 			
 			if (x === null || y === null || z === null) return;
 			
