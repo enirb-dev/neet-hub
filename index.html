@@ -445,13 +445,19 @@
 		
 		window.addEventListener("deviceorientation", function(event) {
 			const beta = event.beta;
+			const alpha = event.alpha;
+			const gamma = event.gamma;
 			
-			if (beta === null) {
+			if (beta === null && alpha === null && gamma === null) {
 				return;
 			}
 			
-			Log("Orientation Logout!", 0, 1);
-			if (Math.abs(beta) > 150) {
+			if (
+				(beta !== null && Math.abs(beta) > 150) ||
+				(alpha !== null && Math.abs(alpha) > 150) ||
+				(gamma !== null && Math.abs(gamma) > 150)
+			) {
+				Log("Orientation Logout!", 0, 1);
 				emergency();
 			}
 		});
