@@ -1,0 +1,1409 @@
+<!DOCTYPE html>
+<html>
+<head>
+	<meta charset="UTF-8">
+	<meta name="viewport" content="width=device-width, initial-scale=1.0">
+	
+	<title>Neet Hub</title>
+	
+	<style>
+		body {  /* nothing for general, # for id, . for class */
+			font-family: Arial, sans-serif;
+			background: #f2f2f2;
+			margin: 0;
+		}
+		
+		#loginPage,
+		.pageStyleB {
+			max-width: 500px;
+			margin: 50px auto;
+			background: white;
+			padding: 25px;
+			border-radius: 12px;
+		}
+		
+		input {
+			width: 100%;
+			padding: 10px;
+			margin: 8px 0;
+			box-sizing: border-box;
+		}
+		
+		button {
+			padding: 10px 15px;
+			margin: 5px;
+			cursor: pointer;
+		}
+		
+		#messages {
+			height: 400px;
+			overflow-y: auto;
+			border: 1px solid #ccc;
+			padding: 10px;
+			margin-bottom: 10px;
+		}
+		
+		.message {
+			background: #eeeeee;
+			padding: 8px;
+			margin: 5px;
+			border-radius: 8px;
+		}
+		
+		.message b {
+			display: block;
+		}
+		
+		.pageStyleB {
+			display: none;
+		}
+		
+		#emergencyBubble {
+			position: fixed;
+			right: 20px;
+			bottom: 50px;
+			
+			width: 55px;
+			height: 55px;
+			
+			border-radius: 50%;
+			border: none;
+			
+			background: #222;
+			color: white;
+			
+			font-size: 20px;
+			cursor: grab;
+			z-index: 9999;
+			
+			margin: 0;
+			padding: 0;
+			
+			user-select: none;
+			touch-action: none;
+		}
+		
+		#emergencyBubble:active {
+			cursor: grabbing;
+		}
+		
+		.mask-password {
+			-webkit-text-security: disc;
+			text-security: disc;
+		}
+		
+		.callPage {
+			max-width: 700px;
+			box-sizing: border-box;
+		}
+		
+		#videoContainer {
+			position: relative;
+			width: 100%;
+			height: 55vh;
+			min-height: 250px;
+			max-height: 600px;
+			
+			background: #111;
+			border-radius: 12px;
+			overflow: hidden;
+			
+			margin: 15px 0;
+		}
+		
+		#remoteVideo {
+			width: 100%;
+			height: 100%;
+			
+			object-fit: contain;
+			display: block;
+		}
+		
+		#localVideo {
+			position: absolute;
+			
+			right: 12px;
+			bottom: 12px;
+			
+			width: 30%;
+			max-width: 180px;
+			
+			aspect-ratio: 3 / 4;
+			
+			object-fit: cover;
+			
+			border-radius: 10px;
+			border: 2px solid white;
+			
+			background: #222;
+			
+			transform: scaleX(-1);
+		}
+		
+		#remoteAudio {
+			display: none;
+		}
+		
+		#callControls {
+			display: flex;
+			flex-wrap: wrap;
+			justify-content: center;
+			gap: 8px;
+		}
+		
+		#callControls button {
+			margin: 3px;
+		}
+		
+		@media (max-width: 600px) {
+			.callPage {
+				margin: 10px;
+				padding: 15px;
+			}
+			
+			#videoContainer {
+				height: 55vh;
+				min-height: 220px;
+				max-height: none;
+			}
+			
+			#localVideo {
+				width: 32%;
+				max-width: 130px;
+				bottom: 8px;
+				right: 8px;
+			}
+			
+			#callControls {
+				width: 100%;
+			}
+			
+			#callControls button {
+				flex: 1 1 40%;
+				min-height: 45px;
+			}
+		}
+		
+	
+	</style>
+	
+</head><body>
+	<button id="emergencyBubble">●</button>
+	<div id="loginPage">
+		<h1> Neet Hub </h1>
+		<h2> Login </h2>
+		
+		<input
+			id = "username"
+			type = "text"
+			placeholder = "username"
+			autocomplete = "off"
+		>
+		
+		<input
+			id = "password"
+			type = "text"
+			class = "mask-password"
+			placeholder = "Password"
+			autocomplete = "new-password"
+		>
+		
+		<button onclick="login()"> Login </button>
+		<button onclick="register()"> Register </button>
+		
+		<p id="loginStatus"></p>
+	</div>
+	
+	<div id="callPage" class="pageStyleB callPage">		<h1>Neet Hub Call</h1>		<h2 id="callHead"></h2>
+		<h2 id="callPerson"></h2>
+		<p id="callStatus"></p>		<div id="videoContainer">			<video
+				id="remoteVideo"
+				autoplay
+				playsinline
+			></video>			<video
+				id="localVideo"
+				autoplay
+				playsinline
+				muted
+			></video>		</div>		<audio
+			id="remoteAudio"
+			autoplay
+			playsinline
+		></audio>		<div id="callControls">
+			<button id="callButton"></button>
+			<button id="rejectCallButton" style="display:none;"> Reject </button>
+			
+			<button id="muteButton" style="display:none;"> Mute </button>
+			<button id="cameraButton" style="display:none;"> Camera: ON </button>
+		</div>
+	</div>
+		
+	<div id="roomsPage" class="pageStyleB">
+		<button onclick="backToGlobal()"> Back </button>
+		<h1> Private Chats </h1>
+		<hr>
+		<button onclick="createRoom()"> Create Room </button>
+		
+		<div id="rooms"></div>
+	</div>
+	
+	<div id="adminPage" class="pageStyleB">
+		<button onclick="logout()"> Exit </button>
+		<hr>
+		
+		<div id="adminPanel" class="pageStyleB">
+			<h1> Admin Control Panel </h1>
+			
+			<button onclick="clearhistory()"> Clear history </button>
+			<hr>
+			
+			<button onclick="manageAccounts()"> Manage Accounts </button>
+			<hr>
+			
+			<button onclick="managehistory()"> Manage history </button>
+			<hr>
+			
+			<button onclick="system(1)"> Enable New User Registration </button>
+			<button onclick="system(2)"> Disable New User Registration </button>
+			<hr>
+			
+			<button onclick="system(3)"> Freeze System </button>
+			<button onclick="system(4)"> Unfreeze System </button>
+			<hr>
+		
+		</div>
+		
+		<div id="accountManager" class="pageStyleB">
+			<h1> Account Manager </h1>
+			<button onclick="backToAdmin()"> Back </button>
+			
+			<div id="accounts"></div>
+		</div>
+		
+		<div id="historyManager" class="pageStyleB">
+			<h1> History Manager </h1>
+			<button onclick="backToAdmin()"> Back </button>
+			
+			<div id="history"></div>
+		</div>
+	</div>
+	
+	<script type="module">
+		import { initializeApp } from "https://www.gstatic.com/firebasejs/12.1.0/firebase-app.js";
+		
+		import {
+			getDatabase,
+			ref,
+			set,
+			get,
+			push,
+			onValue,
+			remove
+		} from "https://www.gstatic.com/firebasejs/12.1.0/firebase-database.js";
+		
+		import {
+			getAuth,
+			createUserWithEmailAndPassword,
+			signInWithEmailAndPassword,
+			signOut,
+			onAuthStateChanged
+		} from "https://www.gstatic.com/firebasejs/12.1.0/firebase-auth.js";
+		
+		
+		const firebaseConfig = {
+			apiKey: "AIzaSyAZZ7Rima-d6qFOUeiWKykUI_5yqW4vKig",
+			authDomain: "neet-hub-33eef.firebaseapp.com",
+			databaseURL: "https://neet-hub-33eef-default-rtdb.asia-southeast1.firebasedatabase.app",
+			projectId: "neet-hub-33eef",
+			storageBucket: "neet-hub-33eef.firebasestorage.app",
+			messagingSenderId: "654893266181",
+			appId: "1:654893266181:web:a6509fd16c469c47e5336c",
+			measurementId: "G-HPRY0H6ZKX"
+		};
+		
+		const app = initializeApp(firebaseConfig);
+		const db = getDatabase(app);
+		const auth = getAuth(app);
+		
+		let currentUser = null;
+		let currentUsername = null;
+		let currentRoom = null;
+		let currentRoomData = null;
+		
+		let stopMessageListener = null;
+		
+		
+		let peerConnection = null;
+		let audioStream = null;
+		let videoStream = null;
+		let localStream = null;
+		
+		let currentCallId = null;
+		let currentCallData = null;
+		let callingBySelf = false;
+		let currentCallType = null;
+		
+		let isMuted = false;
+		let cameraOn = false;
+		
+		let stopCallListener = null;
+		let stopCallerCandidateListener = null;
+		let stopReceiverCandidateListener = null;
+		let processedCallerCandidates = new Set();
+		let processedReceiverCandidates = new Set();
+		
+		
+		const BASE = "";
+		const REF = {
+			secure: BASE + "/secure",
+			users: BASE + "/users",
+			globalChat: BASE + "/messages",
+			frozen: BASE + "/frozen",
+			newReg: BASE + "/reg",
+			rooms: BASE + "/rooms",
+			calls: BASE + "/calls"
+		};
+		
+		function GE(element) { return document.getElementById(element); }
+		function CE(element) { return document.createElement(element); }
+		function usernameToEmail(uname) { return uname + "@neethub.enirb.in" }
+		
+		async function update(key, value) {
+			await set(ref(db, key), value);
+		}
+		
+		async function fetch(key) {
+			const snap = await get(ref(db, key));
+			if (snap.exists()) {
+				return snap.val();
+			}
+			
+			return null;
+		}
+		
+		function waitForClick(button) {
+			return new Promise(function(resolve) {
+				button.onclick = function() {
+					resolve();
+				};
+			});
+		}
+		
+		
+		function setLoginStatus(txt) {
+			GE("loginStatus").textContent = txt;
+		}
+		
+		let emergencyTriggered = false;
+		const emergencyBubble = GE("emergencyBubble");
+		
+		let dragging = false;
+		let moved = false;
+		let offsetX = 0;
+		let offsetY = 0;
+		
+		emergencyBubble.addEventListener("pointerdown", function(event) {
+			dragging = true;
+			moved = false;
+			
+			const rect = emergencyBubble.getBoundingClientRect();
+			
+			offsetX = event.clientX - rect.left;
+			offsetY = event.clientY - rect.top;
+			
+			emergencyBubble.setPointerCapture(event.pointerId);
+		});
+		
+		emergencyBubble.addEventListener("pointermove", function(event) {
+			if (!dragging) {return;}
+			
+			moved = true;
+			let x = event.clientX - offsetX;
+			let y = event.clientY - offsetY;
+			
+			const maxX = window.innerWidth - emergencyBubble.offsetWidth;
+			const maxY = window.innerHeight - emergencyBubble.offsetHeight;
+			
+			x = Math.max(0, Math.min(x, maxX));
+			y = Math.max(0, Math.min(y, maxY));
+			
+			emergencyBubble.style.left = x + "px";
+			emergencyBubble.style.top = y + "px";
+			
+			emergencyBubble.style.right = "auto";
+			emergencyBubble.style.bottom = "auto";
+		});
+		
+		emergencyBubble.addEventListener("pointerup", function(event) {
+			dragging = false;
+			
+			emergencyBubble.releasePointerCapture(event.pointerId);
+			
+			if (!moved) {
+				emergency();
+			}
+		});
+		
+		window.clearhistory = async function() {
+			await update(REF.globalChat, {});
+		};
+		
+		window.emergency = function() {
+			if (emergencyTriggered) { return; }
+			
+			emergencyTriggered = true;
+			if (stopMessageListener) {
+				stopMessageListener();
+				stopMessageListener = null;
+			}
+			
+			currentUser = null;
+			
+			GE("chatPage").style.display = "none";
+			GE("adminPage").style.display = "none";
+			Array.from(GE("adminPage").children).forEach(child => {
+			  child.style.display = "none";
+			});
+			
+			GE("messages").innerHTML = "";
+			
+			GE("username").value = "";
+			GE("password").value = "";
+			
+			GE("loginPage").style.display = "block";
+			
+			logout();
+		};
+		
+		window.addEventListener("deviceorientation", function(event) {
+			const beta = event.beta;
+			
+			if (beta === null) {
+				return;
+			}
+			
+			if (Math.abs(beta) > 150) {
+				emergency();
+			}
+		});
+		
+		window.register = async function() {
+			const user = GE("username").value.trim().toLowerCase();
+			const pass = GE("password").value.trim();
+			
+			if (!user || !pass) {
+				setLoginStatus("Enter username and Password.");
+				return;
+			}
+			
+			if (await fetch(REF.newReg) === false) {
+				setLoginStatus("Registrations Closed By Admin.");
+				return;
+			}
+			
+			if (
+				!/^[a-z0-9_]{3,20}$/.test(user)
+			) {
+				setLoginStatus(
+					"username must contain only letters, numbers or _. 3-20 characters."
+				);
+				return;
+			}
+			
+			const email = usernameToEmail(user);
+			
+			try {
+				const cred = await createUserWithEmailAndPassword(
+					auth,
+					email,
+					pass
+				);
+				
+				currentUser = cred.user;
+				currentUsername = user;
+				
+				await update(
+					REF.users + "/" + currentUser.uid,
+					
+					{
+						username: currentUsername,
+						createdAt: Date.now()
+					}
+					
+				);
+				
+				setLoginStatus("Account Created! You can now login.");
+			} catch (err) {
+				setLoginStatus("Error Registering User: " + err.message);
+			}
+		};
+		
+		
+		window.login = async function() {
+			emergencyTriggered = false;
+			
+			const user = GE("username").value.trim().toLowerCase();
+			const pass = GE("password").value.trim();
+			
+			if (!user || !pass) {
+				setLoginStatus("Enter username and Password.");
+				return;
+			}
+			
+			if ((await fetch(REF.frozen) === true) && (user !== "admin")) {
+				setLoginStatus("System Frozen by Admin.");
+				return;
+			}
+			const email = usernameToEmail(user)
+			
+			try {
+				await signInWithEmailAndPassword(
+					auth,
+					email,
+					pass
+				);
+				
+			} catch (err) {
+				setLoginStatus("Error Loggin In: " + err.message);
+			}
+		}
+		
+		onAuthStateChanged(
+			auth,
+			async function(user) {
+				if (user) {
+					currentUser = user;
+					const data = await fetch(REF.users + "/" + user.uid);
+					
+					if (data) {
+						currentUsername = data.username;
+					}
+				
+				
+				if (currentUsername == "admin") {
+					GE("loginPage").style.display = "none";
+					GE("chatPage").style.display = "none";
+					GE("adminPage").style.display = "block";
+					GE("callPage").style.display = "none";
+					GE("adminPanel").style.display = "block";
+					return;
+				}
+				
+				GE("currentUser").textContent = currentUsername;
+				
+				GE("loginPage").style.display = "none";
+				GE("adminPage").style.display = "none";
+				
+				GE("chatPage").style.display = "block";
+				
+				startIncomingCallListener();
+				openRoom(REF.globalChat);
+				
+				setLoginStatus("Logged In.");
+				
+				} else {
+					currentUser = null;
+					currentUsername = null;
+					if (stopMessageListener) {
+						stopMessageListener();
+						stopMessageListener = null;
+					}
+				}
+			}
+		);
+		
+		
+		window.sendMessage = async function() {
+			if (!currentUser || !currentRoom) {
+				return;
+			}
+			
+			const input = GE("messageInput");
+			const text = input.value.trim();
+			
+			if (!text) {
+				return;
+			}
+			
+			const message = {
+				sender: currentUser.uid,
+				senderName: currentUsername,
+				type: "text",
+				data: text,
+				tstamp: Date.now()
+			};
+			
+			const messageRef = push(
+				ref(db, currentRoom + "/messages")
+			);
+			
+			await set(messageRef, message);
+			
+			input.value = "";
+		}
+		
+		
+		function startMessageListener(messageRef) {
+			
+			stopMessageListener =
+				onValue(
+					messageRef,
+					function(snap) {
+						
+						const cont = GE("messages");
+						cont.innerHTML = "";
+						
+						const data = snap.val();
+						
+						if (!data) {
+							return;
+						}
+						
+						const messages = Object.values(data);
+						
+						messages.sort(
+							(a, b) => a.tstamp - b.tstamp
+						);
+						
+						for (const message of messages) {
+							const div = CE("div");
+							div.className = "message";
+							
+							const name = CE("b");
+							name.textContent =
+								message.senderName || "Unknown";
+							
+							let dat;
+							if (message.type == "text") {
+								dat = CE("span");
+								dat.textContent = message.data;
+							} else if (message.type == "image") {
+								dat = CE("img");
+								dat.src = message.data;
+							} else if (message.type == "video") {
+								dat = CE("video");
+								dat.src = message.data;
+								dat.controls = true;
+							} else {
+								continue;
+							}
+							
+							div.appendChild(name);
+							div.appendChild(dat);
+							
+							cont.appendChild(div);
+						}
+						
+						cont.scrollTop = cont.scrollHeight;
+					}
+				);
+		}
+		
+		window.logout = async function() {
+			await endCall(true);
+			
+			if (stopMessageListener) {
+				stopMessageListener();
+				stopMessageListener = null;
+			}
+			
+			stopIncomingCallListener();
+			
+			currentUser = null;
+			
+			Array.from(GE("adminPage").children).forEach(child => {
+			  child.style.display = "none";
+			});
+			
+			GE("chatPage").style.display = "none";
+			GE("adminPage").style.display = "none";
+			GE("loginPage").style.display = "block";
+			GE("callPage").style.display = "none";
+			
+			GE("messages").innerHTML = "";
+			
+			GE("username").value = "";
+			GE("password").value = "";
+			
+			setLoginStatus("");
+			await signOut(auth);
+			
+		};
+		
+		window.backToAdmin = function() {
+			Array.from(GE("adminPage").children).forEach(child => {
+			  child.style.display = "none";
+			});
+			GE("adminPanel").style.display = "block";
+		}
+		
+		window.backToGlobal = function() {
+			GE("roomsPage").style.display = "none";
+			GE("chatPage").style.display = "block";
+			
+			if(GE("cRoom")) { GE("cRoom").remove(); }
+			
+			openRoom(REF.globalChat)
+		}
+		
+		window.manageAccounts = async function() {
+			GE("adminPanel").style.display = "none";
+			GE("accountManager").style.display = "block";
+			
+			const cont = GE("accounts");
+			cont.innerHTML = "";
+			
+			const data = await fetch(REF.users);
+			
+			if (!data) {
+				cont.textContent = "No accounts found.";
+				return;
+			}
+			
+			const accounts = Object.entries(data);
+			
+			for (const [uid, account] of accounts) {
+				if (account.username == "admin") { continue; }
+				const div = CE("div");
+				div.className = "account";
+				
+				const name = CE("span");
+				name.textContent = account.username;
+				
+				const brk = CE("br");
+				const hrk = CE("hr");
+				const but = CE("button");
+				
+				but.textContent = "Delete";
+				but.onclick = function() {
+					deleteAccount(uid);
+				};
+				
+				div.appendChild(name);
+				div.appendChild(brk);
+				div.appendChild(but);
+				div.appendChild(hrk);
+				
+				cont.appendChild(div);
+			}
+		};
+		
+		
+		window.managehistory = async function() {
+			GE("adminPanel").style.display = "none";
+			GE("historyManager").style.display = "block";
+			
+			const cont = GE("history");
+			cont.innerHTML = "";
+			
+			const data = await fetch(REF.globalChat);
+			
+			if (!data) {
+				cont.textContent = "No history Yet.";
+				return;
+			}
+			
+			const history = Object.entries(data);
+			
+			for (const [msgID, msgData] of history) {
+				const div = CE("div");
+				div.className = "historyEntry";
+				
+				const brk = CE("br");
+				const hrk = CE("hr");
+				
+				const name = CE("b");
+				name.textContent = msgData.senderName;
+				
+				let dat;
+				if (msgData.type == "text") {
+					dat = CE("p");
+					dat.textContent = msgData.data;
+				}
+				
+				if (msgData.type == "image") {
+					dat = CE("img");
+					dat.src = msgData.data;
+				}
+				
+				if (msgData.type == "video") {
+					dat = CE("video");
+					dat.src = msgData.data;
+				}
+				
+				const stamp = CE("p");
+				const date = new Date(msgData.tstamp);
+				stamp.textContent = date.toLocaleString();
+				
+				const but = CE("button");
+				
+				but.textContent = "Delete";
+				but.onclick = function() {
+					deleteMessage(msgID);
+				};
+				
+				div.appendChild(name);
+				div.appendChild(dat);
+				div.appendChild(stamp);
+				div.appendChild(but); div.appendChild(hrk);
+				
+				cont.appendChild(div);
+			}
+		};
+		
+		async function deleteAccount(acc) {
+			await remove(ref(db, REF.secure + "/" + acc));
+			await remove(ref(db, REF.users + "/" + acc));
+			manageAccounts();
+		}
+		
+		async function deleteMessage(msgID) {
+			await remove(ref(db, REF.globalChat + "/" + msgID));
+			managehistory();
+		}
+		
+		window.system = async function(hash) {
+			if (hash == 1) { await update(REF.newReg, true); }
+			if (hash == 2) { await update(REF.newReg, false); }
+			if (hash == 3) { await update(REF.frozen, true); }
+			if (hash == 4) { await update(REF.frozen, false); }
+		};
+		
+		window.createRoom = async function() {
+			const div = CE("div");
+			div.id = "cRoom";
+			div.className = "pageStyleB";
+			
+			const room = {
+				uid: null,
+				users: [],
+				messages: {},
+				name: null
+			}
+			
+			const txt = CE("span");
+			txt.textContent = "Enter Room Name:"
+			
+			const inp = CE("input");
+			inp.id = "rInput";
+			
+			const but = CE("button");
+			but.textContent = "Ok";
+			
+			div.appendChild(txt); div.appendChild(inp); div.appendChild(but);
+			div.style.display = "block";
+			
+			GE("roomsPage").appendChild(div);
+			
+			await waitForClick(but);
+			
+			room.name = inp.value.trim();
+			
+			txt.textContent = "Enter Member Username (leave blank to finish):";
+			inp.value = "";
+			
+			while (true) {
+				await waitForClick(but);
+				const memberName = inp.value.trim().toLowerCase();
+				
+				if (memberName == "") {
+					break;
+				}
+				
+				const users = await fetch(REF.users);
+				let found = false;
+				
+				if (users) {
+					for (const [uid, user] of Object.entries(users)) {
+						if (user.username == memberName) {
+							room.users.push(uid);
+							found = true;
+							break;
+						}
+					}
+				}
+				
+				if (!found) {
+					txt.textContent = "User not found. Enter Member Username:";
+					inp.value = "";
+					continue;
+				}
+				
+				txt.textContent = "Enter Member Username (leave blank to finish):";
+				inp.value = "";
+			}
+			
+			room.users.push(currentUser.uid);
+			
+			const roomRef = push(ref(db, REF.rooms));
+			room.uid = roomRef.key;
+			
+			await set(roomRef, room);
+			div.style.display = "none";
+		}
+		
+		async function openRoom(roomHash) {
+			GE("roomsPage").style.display = "none";
+			GE("chatPage").style.display = "block";
+			
+			if (stopMessageListener) {
+				stopMessageListener();
+				stopMessageListener = null;
+			}
+			
+			currentRoom = roomHash;
+			currentRoomData = null;
+			
+			if (roomHash === REF.globalChat) {
+				GE("callButton").disabled = true;
+			} else {
+				const room = await fetch(roomHash);
+				currentRoomData = room;
+				
+				if (room && room.users && room.users.length >= 2) {
+					GE("callButton").disabled = false;
+				} else {
+					GE("callButton").disabled = true;
+				}
+			}
+			
+			startMessageListener(ref(db, roomHash + "/messages"));
+		}
+		
+		window.showRooms = async function() {
+			GE("chatPage").style.display = "none";
+			GE("roomsPage").style.display = "block";
+			
+			const rooms = await fetch(REF.rooms);
+			
+			const cont = GE("rooms");
+			cont.innerHTML = "";
+			
+			if (!rooms) {
+				cont.textContent = "No Rooms.";
+				return;
+			}
+			
+			const data = Object.values(rooms);
+			
+			for (const room of data) {
+				if (!room.users || !room.users.includes(currentUser.uid)) { continue; }
+				
+				const div = CE("div");
+				
+				const name = CE("b");
+				name.textContent = room.name || "Private Chat";
+				
+				const last = CE("span");
+				if (room.messages) {
+					const messages = Object.values(room.messages);
+					messages.sort(
+						(a, b) => a.tstamp - b.tstamp
+					);
+					
+					const latest = messages[messages.length - 1];
+					if (latest) {
+						last.textContent =
+							"\n" + latest.data.slice(0, 15);
+					} else {
+						last.textContent = "\nNo Messages.";
+					}
+				} else {
+					last.textContent = "\nNo Messages.";
+				}
+				
+				const but = CE("button");
+				but.textContent = "Open";
+				but.onclick = function() { openRoom(REF.rooms + "/" + room.uid); }
+				
+				const hrk = CE("hr");
+				const brk = CE("br");
+				
+				div.appendChild(name); div.appendChild(last); div.appendChild(brk);
+				div.appendChild(but); div.appendChild(hrk);
+				cont.appendChild(div);
+			}
+		}
+		
+		
+		GE("messageInput").addEventListener(
+			"keydown",
+			function(event) {
+				if (event.key === "Enter") { sendMessage(); }
+			}
+		);
+		
+		const rtcConfiguration = {
+            iceServers: [
+                { urls: "stun:stun.l.google.com:19302" },
+                { urls: "stun:stun1.l.google.com:19302" }
+            ]
+        };
+				
+		function showCallPage(heading, person, buttonText) {			GE("chatPage").style.display = "none";
+			GE("roomsPage").style.display = "none";
+			GE("callPage").style.display = "block";
+						GE("callHead").textContent = heading;
+			GE("callPerson").textContent = person;
+			GE("callStatus").textContent = "";
+						GE("callButton").textContent = buttonText;
+			GE("callButton").disabled = false;			GE("rejectCallButton").style.display = "none";
+			GE("muteButton").style.display = "none";
+			GE("cameraButton").style.display = "none";
+						GE("videoContainer").style.display = "none";			GE("remoteAudio").srcObject = null;
+			GE("remoteVideo").srcObject = null;
+			GE("localVideo").srcObject = null;
+		}		
+		function hideCallPage() {			GE("callPage").style.display = "none";
+			GE("chatPage").style.display = "block";
+		}		
+		async function getOtherUser() {			if (!currentRoomData || !currentRoomData.users) { return null; }			const otherUID =
+				currentRoomData.users.find(
+					uid => uid !== currentUser.uid
+				);
+						if (!otherUID) { return null; }
+						const userData =
+				await fetch(
+					REF.users + "/" + otherUID
+				);
+						if (!userData) { return null; }
+						return {
+				uid: otherUID,
+				username: userData.username
+			};
+		}		
+		async function createPeerConnection(callType) {			peerConnection =
+				new RTCPeerConnection(
+					rtcConfiguration
+				);
+						if (callType === "video") {				localStream =
+					await navigator.mediaDevices.getUserMedia({
+						audio: true,
+						video: true
+					});			} else {				localStream =
+					await navigator.mediaDevices.getUserMedia({
+						audio: true,
+						video: false
+					});			}			
+			audioStream = localStream;			
+			if (callType === "video") {				videoStream = localStream;				const videoTrack =
+					videoStream.getVideoTracks()[0];				if (videoTrack) {
+					videoTrack.enabled = true;
+				}				cameraOn = true;				GE("videoContainer").style.display = "block";				GE("localVideo").srcObject =
+					localStream;				GE("cameraButton").style.display =
+					"inline-block";				GE("cameraButton").textContent =
+					"Camera: ON";
+			}			
+			for (const track of localStream.getTracks()) {				peerConnection.addTrack(
+					track,
+					localStream
+				);
+			}			
+			peerConnection.ontrack =
+				function(event) {					const stream =
+						event.streams[0];					if (!stream) { return; }
+										GE("remoteAudio").srcObject = stream;					GE("remoteAudio")
+						.play()
+						.catch(
+							err => console.log("Audio autoplay:", err)
+						);
+										if (currentCallType === "video") {						GE("remoteVideo").srcObject = stream;						GE("remoteVideo")
+							.play()
+							.catch(
+								err => console.log("Video playback:", err)
+						);
+					}
+				};
+						peerConnection.onicecandidate =
+				async function(event) {					if (!event.candidate || !currentCallId) { return; }
+										const path =
+						REF.calls +
+						"/" +
+						currentCallId +
+						"/" +
+						(
+							callingBySelf
+								? "callerCandidates"
+								: "receiverCandidates"
+						);					
+					const candidateRef =
+						push(ref(db, path));					
+					await set(
+						candidateRef,
+						event.candidate.toJSON()
+					);
+				};			
+			peerConnection.onconnectionstatechange =
+				function() {					if (!peerConnection) { return; }
+										const state =
+						peerConnection.connectionState;					console.log(
+						"WebRTC state:",
+						state
+					);					
+					if (state === "connected") {						GE("callStatus").textContent = "Connected";						GE("muteButton").style.display = "inline-block";						
+						if (currentCallType === "video") {							GE("cameraButton").style.display = "inline-block";
+						}
+					}					
+					if (state === "disconnected") {						GE("callStatus").textContent = "Connection interrupted.";
+					}					
+					if (state === "failed") {						GE("callStatus").textContent = "Connection failed.";
+					}					
+					if (state === "closed") {						cleanupCall(true);
+					}
+				};
+		}		
+		window.callUser =
+			async function(callType) {				if (!currentUser) { return; }				
+				if (!currentRoomData) {					alert("Calling is available only in private chats.");					return;
+				}				
+				if (currentRoomData.users.length !== 2) {					alert("Calling currently supports exactly 2 users per room.");					return;
+				}				
+				if (peerConnection) { return; }				
+				const otherUser =
+					await getOtherUser();				
+				if (!otherUser) {					alert("Could not find the other user.");					return;
+				}
+								const existingCalls =
+					await fetch(REF.calls);
+				if (existingCalls) {					for ( const call of Object.values(existingCalls) ) {						if (call.status !== "active" && call.status !== "ringing") { continue; }
+						
+						if (call.caller === otherUser.uid || call.receiver === otherUser.uid) {							alert("That user is already on a call.");							return;
+						}
+					}
+				}
+				
+				callingBySelf = true;				currentCallType = callType;
+				
+				showCallPage(
+					callType === "video"
+						? "Outgoing Video Call"
+						: "Outgoing Voice Call",					otherUser.username,					"End"
+				);
+				
+				GE("callStatus")
+					.textContent =
+					"Calling...";
+								const callRef =
+					push(ref(db, REF.calls));
+				
+				currentCallId = callRef.key;
+				
+				currentCallData = {					caller: currentUser.uid,					callerName: currentUsername,					receiver: otherUser.uid,					receiverName: otherUser.username,					room: currentRoom,					callType: callType,					status: "ringing",					createdAt: Date.now()
+				};				
+				await set(callRef, currentCallData);
+								try {					await createPeerConnection(callType);				} catch (err) {					console.error("Media error:", err);					GE("callStatus").textContent = "Could not access microphone/camera: " + err.message;					await cleanupCall(true);					return;
+				}
+								const offer = await peerConnection.createOffer();
+				
+				await peerConnection.setLocalDescription(offer);
+				await set(
+					ref(db, REF.calls + "/" + currentCallId + "/offer"),
+					{
+						type: offer.type,
+						sdp: offer.sdp
+					}
+				);
+								stopCallListener =
+					onValue(
+						ref(db, REF.calls + "/" + currentCallId),						async function(snapshot) {							const data =
+								snapshot.val();							if (!data) { return; }
+							
+							if (data.status === "rejected") {								GE("callStatus").textContent = "Call rejected.";								await cleanupCall(true);								return;
+							}
+							
+							if (data.status === "ended") {								GE("callStatus").textContent = "Call ended.";								await cleanupCall(true);								return;
+							}
+							
+							if (data.answer && peerConnection && !peerConnection.currentRemoteDescription) {								try {									await peerConnection.setRemoteDescription(
+											new RTCSessionDescription(data.answer)
+									);									GE("callStatus").textContent = "Connecting...";								} catch (err) {									console.error("Answer error:", err);
+								}
+							}
+						}
+					);
+								stopCallerCandidateListener =
+					onValue(
+						ref(db, REF.calls + "/" + currentCallId + "/receiverCandidates"),						async function(snapshot) {							const data = snapshot.val();							if (!data) { return; }
+							
+							for (const [candidateId, candidate] of Object.entries(data)) {								if (processedReceiverCandidates.has(candidateId)) { continue; }
+																processedReceiverCandidates.add(candidateId);
+								
+								try {									await peerConnection.addIceCandidate(
+											new RTCIceCandidate(
+												candidate
+											)
+									);								} catch (err) {									console.error("Receiver ICE error:", err);
+								}
+							}
+						}
+					);
+				
+				GE("callButton").onclick =
+					function() { endCall(); };
+			};		
+		function startIncomingCallListener() {			stopIncomingCallListener();			
+			if (!currentUser) { return; }
+			
+			stopCallListener =
+				onValue(
+					ref(db, REF.calls),					async function(snapshot) {						const calls =
+							snapshot.val();						if (!calls) { return; }
+						
+						for (const [callId, call] of Object.entries(calls)) {							if (call.receiver !== currentUser.uid) { continue; }
+							if (call.status !== "ringing") { continue; }
+							if (currentCallId) { continue; }
+														if ( Date.now() - call.createdAt > 60000) { continue; }
+							
+							currentCallId = callId;							currentCallData = call;							currentCallType = call.callType || "voice";							callingBySelf = false;
+							showCallPage(								currentCallType ===
+								"video"									? "Incoming Video Call"
+									: "Incoming Voice Call",								call.callerName,								"Accept"
+							);
+							
+							GE("callStatus").textContent = "Incoming call...";
+							GE("rejectCallButton").style.display = "inline-block";
+							
+							GE("callButton").onclick =
+								function() { acceptCall(); };
+							break;
+						}
+					}
+				);
+		}
+		
+		function stopIncomingCallListener() {			if (stopCallListener) {				stopCallListener();				stopCallListener = null;
+			}
+		}
+		
+		async function acceptCall() {			if (!currentCallId || !currentCallData) { return; }
+						GE("rejectCallButton").style.display = "none";
+			GE("callButton").disabled = true;
+			
+			GE("callStatus").textContent = "Connecting...";
+			
+			try {				await createPeerConnection(currentCallType);
+				
+				const call =
+					await fetch(REF.calls + "/" + currentCallId);
+				
+				if (!call || !call.offer) {					throw new Error("Call offer not found.");
+				}
+								await peerConnection.setRemoteDescription(
+						new RTCSessionDescription(
+							call.offer
+						)
+					);
+								const answer =
+					await peerConnection.createAnswer();
+				
+				await peerConnection.setLocalDescription(answer);
+				
+				await update(REF.calls + "/" + currentCallId + "/answer",					{
+						type: answer.type,						sdp: answer.sdp
+					}
+				);
+				
+				await update(REF.calls + "/" + currentCallId + "/status", "active");
+								stopReceiverCandidateListener =
+					onValue(						ref(db, REF.calls + "/" + currentCallId + "/callerCandidates"),						async function(snapshot) {							const data = snapshot.val();							if (!data) { return; }
+							
+							for ( const [candidateId, candidate] of Object.entries(data) ) {								if (processedCallerCandidates.has(candidateId)) { continue; }
+								
+								processedCallerCandidates.add(candidateId);
+								
+								try {									await peerConnection.addIceCandidate(
+											new RTCIceCandidate(
+												candidate
+											)
+										);								} catch (err) {									console.error(
+										"Caller ICE error:",
+										err
+									);
+								}
+							}
+						}
+					);
+				GE("callHead")
+					.textContent =
+					currentCallType === "video"
+						? "In Video Call"
+						: "In Voice Call";
+				GE("callButton").disabled = false;
+				GE("callButton").textContent = "End";
+				
+				GE("callButton").onclick =
+					function() { endCall(); };
+			
+			} catch (err) {				console.error("Accept call error:", err);
+				GE("callStatus").textContent = "Could not connect: " + err.message;
+				
+				await endCall();
+			}
+		}
+		async function rejectCall() {			if (!currentCallId) { return; }
+			
+			await update(REF.calls + "/" + currentCallId + "/status", "rejected");
+			await cleanupCall(true);
+		}		
+		window.endCall =
+			async function(silent = false) {				if (!currentCallId) {					if (!silent) { hideCallPage(); }					return;
+				}				
+				try {					await update(REF.calls + "/" + currentCallId + "/status", "ended");				} catch (err) {					console.error("End call error:",err);
+				}
+				
+				await cleanupCall(!silent);
+			};		
+		async function cleanupCall(returnToChat = true) {						if (stopCallListener) {				stopCallListener();				stopCallListener = null;
+			}			
+			if (stopCallerCandidateListener) {				stopCallerCandidateListener();				stopCallerCandidateListener = null;
+			}			
+			if (stopReceiverCandidateListener) {				stopReceiverCandidateListener();				stopReceiverCandidateListener = null;
+			}
+						if (peerConnection) {				peerConnection.ontrack = null;				peerConnection.onicecandidate = null;				peerConnection.onconnectionstatechange = null;				peerConnection.close();				peerConnection = null;
+			}
+						if (audioStream) {				for ( const track of audioStream.getTracks() ) { track.stop(); }				audioStream = null;
+			}
+						if (videoStream && videoStream !== audioStream	) {				for ( const track of videoStream.getTracks() ) { track.stop(); }
+			}
+			
+			videoStream = null;			localStream = null;
+						GE("remoteAudio").srcObject = null;			GE("remoteVideo").srcObject = null;			GE("localVideo").srcObject = null;
+						currentCallId = null;			currentCallData = null;			currentCallType = null;			callingBySelf = false;			isMuted = false;			cameraOn = false;			
+			processedCallerCandidates.clear();			processedReceiverCandidates.clear();
+						GE("rejectCallButton").style.display = "none";			GE("muteButton").style.display = "none";			GE("cameraButton").style.display = "none";			GE("videoContainer").style.display = "none";			
+			GE("muteButton").textContent = "Mute";			GE("cameraButton").textContent = "Camera: ON";
+			
+			if (returnToChat) { hideCallPage(); }
+		}		
+		window.toggleMute =
+			function() {				if (!audioStream) { return; }				
+				const tracks = audioStream.getAudioTracks();
+				if (!tracks.length) { return; }				
+				isMuted = !isMuted;				
+				for ( const track of tracks ) {					track.enabled = !isMuted;
+				}
+				
+				GE("muteButton").textContent =
+					isMuted
+						? "Unmute"
+						: "Mute";
+			};		
+		window.toggleCamera =
+			function() {				if (currentCallType !== "video"
+				) { return; }				
+				if (!videoStream) { return; }
+				
+				const tracks = videoStream.getVideoTracks();				
+				if (!tracks.length) { return; }				
+				cameraOn = !cameraOn;				
+				for ( const track of tracks ) {					track.enabled = cameraOn;
+				}				
+				GE("cameraButton").textContent =
+					cameraOn
+						? "Camera: ON"
+						: "Camera: OFF";
+			};
+	
+		
+	</script>
+</body></html>
