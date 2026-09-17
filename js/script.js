@@ -1,3 +1,7 @@
+
+// ----------------------------------------------------------------
+// ----------------------------------------------------------------
+
 import { initializeApp } from "https://www.gstatic.com/firebasejs/12.1.0/firebase-app.js";
 
 import {
@@ -38,6 +42,9 @@ const auth = getAuth(app);
 await setPersistence(auth, inMemoryPersistence).catch(err => console.error("Persistence error:", err));
 await signOut(auth);
 
+// ----------------------------------------------------------------
+// ----------------------------------------------------------------
+
 let currentUser = null;
 let currentUsername = null;
 let currentRoom = null;
@@ -57,6 +64,9 @@ let callingBySelf = false;
 let isMuted = false;
 let pendingRemoteCandidates = [];
 
+
+// ----------------------------------------------------------------
+// ----------------------------------------------------------------
 
 const BASE = "";
 const REF = {
@@ -112,6 +122,10 @@ function waitForClick(button) {
 		};
 	});
 }
+
+
+// ----------------------------------------------------------------
+// ----------------------------------------------------------------
 
 
 function setLoginStatus(txt) {
@@ -253,6 +267,11 @@ window.addEventListener("devicemotion", function(event) {
 	}
 });
 
+
+
+// ----------------------------------------------------------------
+// ----------------------------------------------------------------
+
 window.register = async function() {
 	const user = GE("username").value.trim().toLowerCase();
 	const pass = GE("password").value.trim();
@@ -385,6 +404,10 @@ onAuthStateChanged(
 	}
 );
 
+
+
+// ----------------------------------------------------------------
+// ----------------------------------------------------------------
 
 window.sendMessage = async function() {
 	if (!currentUser || !currentRoom) {
@@ -601,6 +624,7 @@ window.manageAccounts = async function() {
 		const hrk = CE("hr");
 		const but = CE("button");
 		
+		but.className = "B";
 		but.textContent = "Delete";
 		but.onclick = function() {
 			deleteAccount(uid);
@@ -853,6 +877,7 @@ window.showRooms = async function() {
 		}
 		
 		const but = CE("button");
+		but.className = "B";
 		but.textContent = "Open";
 		but.onclick = function() { openRoom(REF.rooms + "/" + room.uid); }
 		
@@ -874,6 +899,8 @@ GE("messageInput").addEventListener(
 );
 
 
+// ----------------------------------------------------------------
+// ----------------------------------------------------------------
 
 const rtcConfiguration = {
 	iceServers: [
@@ -1309,3 +1336,7 @@ function createRejectButton() {
 const originalShowCallPage = showCallPage;
 
 GE("callButton").disabled = true;
+
+
+// ----------------------------------------------------------------
+// ----------------------------------------------------------------

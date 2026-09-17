@@ -32,6 +32,12 @@ body {  /* nothing for general, # for id, . for class */
             cursor: pointer;
         }
 		
+		button.B {
+            padding: 4px 6px;
+            margin: 2px;
+            cursor: pointer;
+		}
+		
         #messages {
             height: 400px;
             overflow-y: auto;
