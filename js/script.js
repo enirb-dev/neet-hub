@@ -11,6 +11,7 @@ import {
 	get,
 	push,
 	onValue,
+	onChildAdded,
 	remove
 } from "https://www.gstatic.com/firebasejs/12.1.0/firebase-database.js";
 
@@ -50,6 +51,8 @@ let currentUsername = null;
 let currentRoom = null;
 let currentRoomData = null;
 
+let DEVMODE = true;
+
 let stopMessageListener = null;
 
 
@@ -57,7 +60,8 @@ let peerConnection = null;
 let localStream = null;
 let currentCallId = null;
 let currentCallData = null;
-let stopCallListener = null;
+let stopIncomingCallListenerRef = null;
+let stopCurrentCallListener = null;
 let stopCallerCandidateListener = null;
 let stopReceiverCandidateListener = null;
 let callingBySelf = false;
@@ -222,7 +226,7 @@ window.clearhistory = async function() {
 };
 
 window.emergency = function() {
-	if (emergencyTriggered) { return; }
+	if (emergencyTriggered || DEVMODE) { return; }
 	
 	emergencyTriggered = true;
 	if (stopMessageListener) {
@@ -738,6 +742,10 @@ async function deleteMessage(msgID) {
 	managehistory();
 }
 
+
+// ----------------------------------------------------------------
+// ----------------------------------------------------------------
+
 window.system = async function(hash) {
 	if (hash == 1) { await update(REF.newReg, true); Log("New User Registration Enabled."); }
 	if (hash == 2) { await update(REF.newReg, false); Log("New User Registration Disabled."); }
@@ -938,9 +946,9 @@ function showCallPage(
 	person,
 	buttonText
 ) {
-	GE("chatPage").style.display = "none";
-	GE("roomsPage").style.display = "none";
-	GE("callPage").style.display = "block";
+	hideE("chatPage");
+	hideE("roomsPage");
+	showE("callPage");
 	GE("callHead").textContent = heading;
 	GE("callPerson").textContent = person;
 	GE("callStatus").textContent = "";
@@ -951,8 +959,8 @@ function showCallPage(
 }
 
 function hideCallPage() {
-	GE("callPage").style.display = "none";
-	GE("chatPage").style.display = "block";
+	hideE("callPage");
+	hideE("chatPage");
 }
 
 async function getOtherUser() {
@@ -1033,7 +1041,6 @@ window.callUser =
 		
 		await set(callRef, currentCallData);
 		
-		
 		await createPeerConnection();
 		
 		const offer = await peerConnection.createOffer();
@@ -1047,7 +1054,7 @@ window.callUser =
 			}
 		);
 		
-		stopCallListener = onValue(
+		stopIncomingCallListenerRef = onValue(
 				ref(db, REF.calls + "/" + currentCallId),
 				async function(snapshot) {
 					const data = snapshot.val();
@@ -1159,7 +1166,7 @@ function startIncomingCallListener() {
 	
 	if (!currentUser) { return; }
 	
-	stopCallListener =
+	stopIncomingCallListener =
 		onValue(
 			ref(db, REF.calls),
 			async function(snapshot) {
@@ -1191,9 +1198,9 @@ function startIncomingCallListener() {
 }
 
 function stopIncomingCallListener() {
-	if (stopCallListener) {
-		stopCallListener();
-		stopCallListener = null;
+	if (stopIncomingCallListenerRef) {
+		stopIncomingCallListenerRef();
+		stopIncomingCallListenerRef = null;
 	}
 }
 
@@ -1292,6 +1299,11 @@ async function cleanupCall(returnToChat = true) {
 	if ( stopReceiverCandidateListener ) {
 		stopReceiverCandidateListener();
 		stopReceiverCandidateListener = null;
+	}
+	
+	if ( stopCurrentCallListener ) {
+		stopCurrentCallListener();
+		stopCurrentCallListener = null;
 	}
 	
 	if (peerConnection) {
