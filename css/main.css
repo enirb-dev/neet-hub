@@ -1,0 +1,91 @@
+body {  /* nothing for general, # for id, . for class */
+            font-family: Arial, sans-serif;
+            background: #f2f2f2;
+            margin: 0;
+        }
+		
+        #loginPage,
+        .pageStyleB {
+            max-width: 500px;
+            margin: 50px auto;
+            background: white;
+            padding: 25px;
+            border-radius: 12px;
+        }
+		
+		h1 {
+			font-family: "Bookman Old Style", Bookman, Georgia, serif;
+			font-size: 32px;
+			font-weight: bold;
+		}
+		
+        input {
+            width: 100%;
+            padding: 10px;
+            margin: 8px 0;
+            box-sizing: border-box;
+        }
+		
+        button {
+            padding: 10px 15px;
+            margin: 5px;
+            cursor: pointer;
+        }
+		
+        #messages {
+            height: 400px;
+            overflow-y: auto;
+            border: 1px solid #ccc;
+            padding: 10px;
+            margin-bottom: 10px;
+        }
+		
+        .message {
+            background: #eeeeee;
+            padding: 8px;
+            margin: 5px;
+            border-radius: 8px;
+        }
+		
+        .message b {
+            display: block;
+        }
+		
+        .pageStyleB {
+            display: none;
+        }
+		
+		#emergencyBubble {
+			position: fixed;
+			right: 20px;
+			bottom: 50px;
+			
+			width: 55px;
+			height: 55px;
+			
+			border-radius: 50%;
+			border: none;
+			
+			background: #222;
+			color: white;
+			
+			font-size: 20px;
+			cursor: grab;
+			z-index: 9999;
+			
+			margin: 0;
+			padding: 0;
+			
+			user-select: none;
+			touch-action: none;
+		}
+		
+		#emergencyBubble:active {
+			cursor: grabbing;
+		}
+		
+		.mask-password {
+			-webkit-text-security: disc;
+			text-security: disc;
+		}
+	
