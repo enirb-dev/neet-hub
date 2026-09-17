@@ -18,7 +18,7 @@
 	<div id="loginPage">
 		<h1> Neet Hub </h1>
 		<h2> Login </h2>
-		<h3> Stamp: 011 </h3>
+		<h3> Stamp: 012 </h3>
 		
 		<input
 			id = "username"
@@ -41,103 +41,106 @@
 		<p id="loginStatus"></p>
 	</div>
 	
-	<div id="chatPage" class="pageStyleB">
-		<h1> Neet Hub Chat </h1>
-		<p>
-			Logged in as:
-			<b id="currentUser"></b>
-		</p>
-		
-		<button onclick="logout()"> Logout </button>
-		
-		<hr>
-		
-		<div id="messages"></div>
-		
-		<input
-			id = "messageInput"
-			type = "text"
-			placeholder="Type a message..."
-		>
-		
-		<button onclick="sendMessage()"> Send </button>
-		<button onclick="callUser()"> Call </button>
-		
-		<hr>
-		<button onclick="showRooms()"> Private Chats </button>
-	
-	</div>
-	
-	<div id="roomsPage" class="pageStyleB">
-		<button onclick="backToGlobal()"> Back </button>
-		<h1> Private Chats </h1>
-		<hr>
-		<button onclick="createRoom()"> Create Room </button>
-		
-		<div id="rooms"></div>
-	</div>
-	
-	<div id="adminPage" class="pageStyleB">
-		<button onclick="logout()"> Exit </button>
-		<hr>
-		
-		<div id="adminPanel" class="pageStyleB">
-			<h1> Admin Control Panel </h1>
+	<div id="appWorking">
+		<div id="chatPage" class="pageStyleB">
+			<h1> Neet Hub Chat </h1>
+			<p>
+				Logged in as:
+				<b id="currentUser"></b>
+			</p>
 			
-			<button onclick="clearhistory()"> Clear history </button>
+			<button onclick="logout()"> Logout </button>
+			
 			<hr>
 			
-			<button onclick="manageAccounts()"> Manage Accounts </button>
-			<hr>
+			<div id="messages"></div>
 			
-			<button onclick="managehistory()"> Manage history </button>
-			<hr>
+			<input
+				id = "messageInput"
+				type = "text"
+				placeholder="Type a message..."
+			>
 			
-			<button onclick="system(1)"> Enable New User Registration </button>
-			<button onclick="system(2)"> Disable New User Registration </button>
-			<hr>
+			<button onclick="sendMessage()"> Send </button>
+			<button onclick="callUser()"> Call </button>
 			
-			<button onclick="system(3)"> Freeze System </button>
-			<button onclick="system(4)"> Unfreeze System </button>
 			<hr>
-			
-			<button onclick="showLog()"> Check Log </button>
-			<hr>
+			<button onclick="showRooms()"> Private Chats </button>
 		
 		</div>
 		
-		<div id="accountManager" class="pageStyleB">
-			<h1> Account Manager </h1>
-			<button onclick="backToAdmin()"> Back </button>
-			
-			<div id="accounts"></div>
-		</div>
-		
-		<div id="historyManager" class="pageStyleB">
-			<h1> History Manager </h1>
-			<button onclick="backToAdmin()"> Back </button>
-			
-			<div id="history"></div>
-		</div>
-		
-		<div id="logPage" class="pageStyleB">
-			<h1> Log Page </h1>
-			<button onclick="system(5)"> Clear Log </button>
+		<div id="roomsPage" class="pageStyleB">
+			<button onclick="backToGlobal()"> Back </button>
+			<h1> Private Chats </h1>
+			<hr>
+			<button onclick="createRoom()"> Create Room </button>
 			<br>
 			
-			<div id="logDiv"></div>
+			<div id="rooms"></div>
+		</div>
+		
+		<div id="adminPage" class="pageStyleB">
+			<button onclick="logout()"> Exit </button>
+			<hr>
+			
+			<div id="adminPanel" class="pageStyleB">
+				<h1> Admin Control Panel </h1>
+				
+				<button onclick="clearhistory()"> Clear history </button>
+				<hr>
+				
+				<button onclick="manageAccounts()"> Manage Accounts </button>
+				<hr>
+				
+				<button onclick="managehistory()"> Manage history </button>
+				<hr>
+				
+				<button onclick="system(1)"> Enable New User Registration </button>
+				<button onclick="system(2)"> Disable New User Registration </button>
+				<hr>
+				
+				<button onclick="system(3)"> Freeze System </button>
+				<button onclick="system(4)"> Unfreeze System </button>
+				<hr>
+				
+				<button onclick="showLog()"> Check Log </button>
+				<hr>
+			
+			</div>
+			
+			<div id="accountManager" class="pageStyleB">
+				<h1> Account Manager </h1>
+				<button onclick="backToAdmin()"> Back </button>
+				
+				<div id="accounts"></div>
+			</div>
+			
+			<div id="historyManager" class="pageStyleB">
+				<h1> History Manager </h1>
+				<button onclick="backToAdmin()"> Back </button>
+				
+				<div id="history"></div>
+			</div>
+			
+			<div id="logPage" class="pageStyleB">
+				<h1> Log Page </h1>
+				<button onclick="system(5)"> Clear Log </button>
+				<br>
+				
+				<div id="logDiv"></div>
+			</div>
+		</div>
+		
+		<div id="callPage" class="pageStyleB">
+			<h1>Neet Hub Call</h1>
+			<h2 id="callHead"></h2>
+			<h2 id="callPerson"></h2>
+			<p id="callStatus"></p>
+			<button id="callButton"></button>
+			<button id="muteButton" onclick="toggleMute()"> Mute </button>
+			<audio id="remoteAudio" autoplay playsinline></audio>
 		</div>
 	</div>
-	
-	<div id="callPage" class="pageStyleB">
-        <h1>Neet Hub Call</h1>
-        <h2 id="callHead"></h2>
-        <h2 id="callPerson"></h2>
-        <p id="callStatus"></p>
-        <button id="callButton"></button>
-        <button id="muteButton" onclick="toggleMute()"> Mute </button>
-        <audio id="remoteAudio" autoplay playsinline></audio>
-    </div>
 	
 	<script type="module" src="js/script.js"></script>
 </body>

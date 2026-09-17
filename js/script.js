@@ -97,6 +97,28 @@ async function fetch(key) {
 	return null;
 }
 
+function _hideE(element) {
+	element.style.display = "none";
+}
+
+function _showE(element) {
+	element.style.display = "block";
+}
+
+function hideE(element) {
+	_hideE(GE(element));
+}
+
+function showE(element) {
+	_showE(GE(element));
+}
+
+function hideDiv(divName) {
+	Array.from(GE(divName).children).forEach(child => {
+		_hideE(child);
+	});
+}
+
 async function Log(txt, format=0, inf=0) {
 	let data; let pref3; let pref2; let pref1;
 	const map = {
@@ -209,12 +231,11 @@ window.emergency = function() {
 	}
 	
 	currentUser = null;
+	hideDiv("appWorking");
 	
 	GE("chatPage").style.display = "none";
 	GE("adminPage").style.display = "none";
-	Array.from(GE("adminPage").children).forEach(child => {
-	  child.style.display = "none";
-	});
+	hideDiv("adminPage");
 	
 	GE("messages").innerHTML = "";
 	
@@ -507,9 +528,7 @@ window.logout = async function() {
 	
 	currentUser = null;
 	
-	Array.from(GE("adminPage").children).forEach(child => {
-	  child.style.display = "none";
-	});
+	hideDiv("adminPage");
 	
 	GE("chatPage").style.display = "none";
 	GE("adminPage").style.display = "none";
@@ -528,9 +547,7 @@ window.logout = async function() {
 };
 
 window.backToAdmin = function() {
-	Array.from(GE("adminPage").children).forEach(child => {
-	  child.style.display = "none";
-	});
+	hideDiv("adminPage");
 	GE("adminPanel").style.display = "block";
 }
 
