@@ -51,7 +51,7 @@ let currentUsername = null;
 let currentRoom = null;
 let currentRoomData = null;
 
-let DEVMODE = true;
+let DEVMODE = false;
 
 let stopMessageListener = null;
 
@@ -723,6 +723,14 @@ async function deleteAccount(acc) {
 	manageAccounts();
 }
 
+async function deleteRoom(roomHash) {
+	//await remove(ref(db, roomHash));
+	await update(roomHash + "/deleted", true);
+	
+	Log(`Room Deleted: ${roomHash}`);
+	showRooms();
+}
+
 async function deleteMessage(msgID) {
 	await remove(ref(db, REF.globalChat + "/" + msgID));
 	
@@ -753,7 +761,8 @@ window.createRoom = async function() {
 		uid: null,
 		users: [],
 		messages: {},
-		name: null
+		name: null,
+		deleted: false
 	}
 	
 	const txt = CE("span");
@@ -817,6 +826,7 @@ window.createRoom = async function() {
 	div.style.display = "none";
 	
 	Log(`Room Created: ${room.uid}:${room.name}`);
+	showRooms();
 }
 
 async function openRoom(roomHash) {
@@ -864,7 +874,7 @@ window.showRooms = async function() {
 	const data = Object.values(rooms);
 	
 	for (const room of data) {
-		if (!room.users || !room.users.includes(currentUser.uid)) { continue; }
+		if (!room.users || !room.users.includes(currentUser.uid) || room.deleted) { continue; }
 		
 		const div = CE("div");
 		
@@ -889,16 +899,27 @@ window.showRooms = async function() {
 			last.textContent = "\nNo Messages.";
 		}
 		
+		const p = CE("p");
+		
 		const but = CE("button");
 		but.className = "B";
 		but.textContent = "Open";
 		but.onclick = function() { openRoom(REF.rooms + "/" + room.uid); }
 		
+		const but2 = CE("button");
+		but2.className = "B";
+		but2.textContent = "Delete";
+		but2.onclick = function() {
+			let ch = confirm("Delete this Room? (Can't Be Undone)");
+			
+			if (ch) { deleteRoom(REF.rooms + "/" + room.uid); }
+		}
+		
 		const hrk = CE("hr");
 		const brk = CE("br");
 		
-		div.appendChild(name); div.appendChild(last); div.appendChild(brk);
-		div.appendChild(but); div.appendChild(hrk);
+		div.appendChild(name); div.appendChild(last); div.appendChild(brk); div.appendChild(p);
+		div.appendChild(but); div.appendChild(but2); div.appendChild(hrk);
 		cont.appendChild(div);
 	}
 }
@@ -1140,15 +1161,11 @@ async function addRemoteCandidate(candidate) {
 
 
 async function flushPendingRemoteCandidates() {
-	if (
-		!peerConnection ||
-		!remoteDescriptionSet
-	) {
+	if (!peerConnection || !remoteDescriptionSet) {
 		return;
 	}
 	
 	const candidates = pendingRemoteCandidates;
-	
 	pendingRemoteCandidates = [];
 	
 	for ( const candidate of candidates ) {
