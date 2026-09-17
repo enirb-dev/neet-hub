@@ -56,18 +56,6 @@ let DEVMODE = true;
 let stopMessageListener = null;
 
 
-let peerConnection = null;
-let localStream = null;
-let currentCallId = null;
-let currentCallData = null;
-let stopIncomingCallListenerRef = null;
-let stopCurrentCallListener = null;
-let stopCallerCandidateListener = null;
-let stopReceiverCandidateListener = null;
-let callingBySelf = false;
-let isMuted = false;
-let pendingRemoteCandidates = [];
-
 
 // ----------------------------------------------------------------
 // ----------------------------------------------------------------
@@ -930,47 +918,79 @@ GE("messageInput").addEventListener(
 const rtcConfiguration = {
 	iceServers: [
 		{
-			urls:
-				"stun:stun.l.google.com:19302"
+			urls: "stun:stun.l.google.com:19302"
 		},
 		{
-			urls:
-				"stun:stun1.l.google.com:19302"
+			urls: "stun:stun1.l.google.com:19302"
 		}
 	]
 };
 
+let peerConnection = null;
+let localStream = null;
 
-function showCallPage(
-	heading,
-	person,
-	buttonText
-) {
+let currentCallId = null;
+let currentCallData = null;
+
+let stopIncomingCallListenerRef = null;
+let stopCurrentCallListener = null;
+
+let stopCallerCandidateListener = null;
+let stopReceiverCandidateListener = null;
+
+let callingBySelf = false;
+let isMuted = false;
+
+let pendingRemoteCandidates = [];
+let remoteDescriptionSet = false;
+
+let callTimeoutTimer = null;
+let endingCall = false;
+
+
+function showCallPage(heading, person, buttonText) {
 	hideE("chatPage");
 	hideE("roomsPage");
 	showE("callPage");
+	
 	GE("callHead").textContent = heading;
 	GE("callPerson").textContent = person;
 	GE("callStatus").textContent = "";
 	
 	const button = GE("callButton");
+	
 	button.textContent = buttonText;
 	button.disabled = false;
 }
 
+
 function hideCallPage() {
 	hideE("callPage");
-	hideE("chatPage");
+	showE("chatPage");
 }
 
 async function getOtherUser() {
-	if ( !currentRoomData || !currentRoomData.users ) { return null; }
+	if (!currentRoomData || !currentRoomData.users) {
+		return null;
+	}
 	
-	const otherUID = currentRoomData.users.find( uid => uid !== currentUser.uid );
-	if (!otherUID) { return null; }
+	const otherUID =
+		currentRoomData.users.find(
+			uid => uid !== currentUser.uid
+		);
 	
-	const userData = await fetch( REF.users + "/" + otherUID );
-	if (!userData) { return null; }
+	if (!otherUID) {
+		return null;
+	}
+	
+	const userData =
+		await fetch(
+			REF.users + "/" + otherUID
+		);
+	
+	if (!userData) {
+		return null;
+	}
 	
 	return {
 		uid: otherUID,
@@ -978,57 +998,288 @@ async function getOtherUser() {
 	};
 }
 
+async function createPeerConnection() {
+	if (peerConnection) {
+		return;
+	}
+	
+	peerConnection = new RTCPeerConnection(rtcConfiguration);
+	
+	remoteDescriptionSet = false;
+	pendingRemoteCandidates = [];
+	
+	try {
+		localStream = await navigator.mediaDevices.getUserMedia({audio: true, video: false});
+		
+		for ( const track of localStream.getTracks() ) {
+			peerConnection.addTrack(track, localStream);
+		}
+		
+		peerConnection.ontrack = function(event) {
+				const audio = GE("remoteAudio");
+				if (!audio) { return; }
+				
+				audio.srcObject = event.streams[0];
+				
+				audio.play().catch(
+					err =>
+						console.log(
+							"Audio autoplay:",
+							err
+						)
+				);
+			};
+		
+		
+		peerConnection.onicecandidate = async function(event) {
+				if ( !event.candidate || !currentCallId ) { return; }
+				
+				const side =
+					callingBySelf
+						? "callerCandidates"
+						: "receiverCandidates";
+				
+				const candidateRef =
+					push(
+						ref(
+							db,
+							REF.calls +
+							"/" +
+							currentCallId +
+							"/" +
+							side
+						)
+					);
+				
+				try {
+					await set(candidateRef, event.candidate.toJSON());
+				}
+				catch (err) {
+					console.error(
+						"Could not save ICE candidate:",
+						err
+					);
+				}
+			};
+		
+		peerConnection.onconnectionstatechange = function() {
+				if (!peerConnection) { return; }
+				const state = peerConnection.connectionState;
+				
+				console.log(
+					"WebRTC state:",
+					state
+				);
+				
+				if (state === "connected") {
+					GE("callStatus").textContent = "Connected";
+					GE("muteButton").style.display = "inline-block";
+				}
+
+				else if (state === "disconnected") {
+					GE("callStatus").textContent = "Connection interrupted.";
+				}
+				
+				else if (state === "failed") {
+					GE("callStatus").textContent = "Connection failed.";
+				}
+				
+				else if (state === "closed") {
+					// pass
+				}
+			};
+	}
+	
+	catch (err) {
+		// getUserMedia() can fail after peerConnection
+		
+		console.error(
+			"Peer connection setup failed:",
+			err
+		);
+		
+		if (peerConnection) {
+			peerConnection.close();
+			peerConnection = null;
+		}
+		
+		if (localStream) {
+			for ( const track of localStream.getTracks() ) {
+				track.stop();
+			}
+			
+			localStream = null;
+		}
+		
+		throw err;
+	}
+}
+
+
+async function addRemoteCandidate(candidate) {
+	if (!peerConnection || !candidate) {
+		return;
+	}
+	
+	if (!remoteDescriptionSet) {
+		pendingRemoteCandidates.push(candidate);
+		return;
+	}
+	
+	try {
+		await peerConnection.addIceCandidate(new RTCIceCandidate(candidate));
+	}
+	
+	catch (err) {
+		console.error(
+			"ICE candidate error:",
+			err
+		);
+	}
+}
+
+
+async function flushPendingRemoteCandidates() {
+	if (
+		!peerConnection ||
+		!remoteDescriptionSet
+	) {
+		return;
+	}
+	
+	const candidates = pendingRemoteCandidates;
+	
+	pendingRemoteCandidates = [];
+	
+	for ( const candidate of candidates ) {
+		try {
+			await peerConnection.addIceCandidate( new RTCIceCandidate(candidate) );
+		}
+		catch (err) {
+			console.error(
+				"Queued ICE candidate error:",
+				err
+			);
+		}
+	}
+}
+
+function listenForCallerCandidates() {
+	if (!currentCallId) {
+		return;
+	}
+	
+	if (stopReceiverCandidateListener) {
+		stopReceiverCandidateListener();
+		stopReceiverCandidateListener = null;
+	}
+	
+	stopReceiverCandidateListener =
+		onChildAdded(
+			ref(
+				db,
+				REF.calls +
+				"/" +
+				currentCallId +
+				"/callerCandidates"
+			),
+			
+			async function(snapshot) {
+				const candidate = snapshot.val();
+				await addRemoteCandidate(candidate);
+			}
+		);
+}
+
+
+function listenForReceiverCandidates() {
+	if (!currentCallId) {
+		return;
+	}
+	
+	if (stopCallerCandidateListener) {
+		stopCallerCandidateListener();
+		stopCallerCandidateListener = null;
+	}
+	
+	stopCallerCandidateListener =
+		onChildAdded(
+			ref(
+				db,
+				REF.calls +
+				"/" +
+				currentCallId +
+				"/receiverCandidates"
+			),
+			
+			async function(snapshot) {
+				const candidate = snapshot.val();
+				await addRemoteCandidate(candidate);
+			}
+		);
+}
 
 window.callUser =
 	async function() {
-		if (!currentUser) { return; }
-		
+		if (!currentUser) {
+			return;
+		}
 		if (!currentRoomData) {
-			alert("Calling is available only in private chats.");
+			alert(
+				"Calling is available only in private chats."
+			);
 			return;
 		}
 		
-		if (currentRoomData.users.length !== 2) {
+		if (!currentRoomData.users || currentRoomData.users.length !== 2) {
 			alert("Calling currently supports exactly 2 users per room.");
 			return;
 		}
 		
-		if (peerConnection) { return; }
+		if (peerConnection || currentCallId) {
+			return;
+		}
 		
 		const otherUser = await getOtherUser();
-
+		
 		if (!otherUser) {
 			alert("Could not find the other user.");
+			
 			return;
 		}
 		
 		const existingCalls = await fetch(REF.calls);
 		
 		Log(`Call Attempted: to ${otherUser.uid}:${otherUser.username}`);
+		
 		if (existingCalls) {
-			for (const call of Object.values(existingCalls)) {
-				if (call.status === "active" || call.status === "ringing") {
-					if (call.caller === otherUser.uid || call.receiver === otherUser.uid) {
-						alert("That user is already on a call.");
-						return;
-					}
+			for ( const call of Object.values(existingCalls) ) {
+				if (call.status !== "active" && call.status !== "ringing") {
+					continue;
+				}
+				
+				if (call.caller === otherUser.uid || call.receiver === otherUser.uid) {
+					alert("That user is already on a call.");
+					return;
 				}
 			}
 		}
 		
 		callingBySelf = true;
+		endingCall = false;
 		
-		showCallPage("Outgoing Call",
+		showCallPage(
+			"Outgoing Call",
 			otherUser.username,
 			"End"
 		);
 		
 		GE("callStatus").textContent = "Calling...";
 		
-		const callRef =
-			push(ref(db, REF.calls));
+		const callRef = push(ref(db, REF.calls));
 		
 		currentCallId = callRef.key;
+		
 		currentCallData = {
 			caller: currentUser.uid,
 			callerName: currentUsername,
@@ -1039,163 +1290,174 @@ window.callUser =
 			createdAt: Date.now()
 		};
 		
-		await set(callRef, currentCallData);
 		
-		await createPeerConnection();
-		
-		const offer = await peerConnection.createOffer();
-		await peerConnection.setLocalDescription(offer);
-		
-		await set(
-			ref(db, REF.calls + "/" + currentCallId + "/offer"),
-			{
-				type: offer.type,
-				sdp: offer.sdp
+		try {
+			await set(callRef, currentCallData);
+			await createPeerConnection();
+			
+			listenForReceiverCandidates();
+			
+			const offer = await peerConnection.createOffer();
+			
+			await peerConnection.setLocalDescription(offer);
+			
+			await update(
+				REF.calls +
+				"/" +
+				currentCallId +
+				"/offer",
+				
+				{
+					type: offer.type,
+					sdp: offer.sdp
+				}
+			);
+			
+			if (stopCurrentCallListener) {
+				stopCurrentCallListener();
+				stopCurrentCallListener = null;
 			}
-		);
-		
-		stopIncomingCallListenerRef = onValue(
-				ref(db, REF.calls + "/" + currentCallId),
-				async function(snapshot) {
-					const data = snapshot.val();
-					if (!data) { return; }
+			
+			stopCurrentCallListener =
+				onValue(
+					ref(
+						db,
+						REF.calls +
+						"/" +
+						currentCallId
+					),
 					
-					if (data.status === "rejected") {
-						GE("callStatus").textContent = "Call rejected.";
-						await cleanupCall(false);
-						return;
+					async function(snapshot) {
+						const data = snapshot.val();
+						
+						if (!data) {
+							return;
+						}
+						
+						if (data.status === "rejected") {
+							GE("callStatus").textContent = "Call rejected.";
+							await cleanupCall(true);
+							return;
+						}
+						
+						if ( data.status === "ended" ) {
+							GE("callStatus").textContent = "Call ended.";
+							await cleanupCall(true);
+							return;
+						}
+						
+						if (data.answer && peerConnection && peerConnection.currentRemoteDescription === null) {
+							try {
+								await peerConnection.setRemoteDescription( new RTCSessionDescription(data.answer));
+								remoteDescriptionSet = true;
+								
+								await flushPendingRemoteCandidates();
+								GE("callStatus").textContent = "Connecting...";
+							}
+							catch (err) {
+								console.error(
+									"Answer error:",
+									err
+								);
+								
+								GE("callStatus").textContent = "Could not establish connection.";
+							}
+						}
 					}
-					
-					if (data.status === "ended") {
-						GE("callStatus").textContent = "Call ended.";
-						await cleanupCall(false);
-						return;
-					}
-					
-					if (data.answer && peerConnection.currentRemoteDescription === null) {
-						try {
-							await peerConnection.setRemoteDescription(
-									new RTCSessionDescription(data.answer)
-							);
+				);
+			
+			
+			clearTimeout(callTimeoutTimer);
+			callTimeoutTimer = setTimeout(
+					async function() {
+						if (currentCallId && currentCallData && currentCallData.status === "ringing") {
+							GE("callStatus").textContent = "No answer.";
 							
-							GE("callStatus").textContent = "Connected";
-						} catch (err) { console.error(err); }
-					}
-				}
-			);
+							await endCall();
+						}
+					},
+					30000
+				);
+			
+			GE("callButton").onclick = function() { endCall(); };
+		}
 		
-		stopCallerCandidateListener =
-			onValue(
-				ref(db, REF.calls + "/" + currentCallId + "/receiverCandidates"),
-				async function(snapshot) {
-					const data = snapshot.val();
-
-					if (!data) { return; }
-					
-					for (const candidate of Object.values(data)) {
-						try {
-							await peerConnection.addIceCandidate(
-									new RTCIceCandidate(candidate)
-							);
-						} catch (err) { console.error("ICE error:", err); }
-					}
-				}
+		catch (err) {
+			console.error(
+				"Call setup error:",
+				err
 			);
-		
-		GE("callButton").onclick =
-			function() { endCall(); };
+			
+			GE("callStatus").textContent = "Could not start call: " + err.message;
+			
+			await cleanupCall(true);
+		}
 	};
 
 
-async function createPeerConnection() {
-	peerConnection = new RTCPeerConnection(rtcConfiguration);
-	
-	localStream = await navigator.mediaDevices.getUserMedia({ audio: true, video: false });
-	
-	for ( const track of localStream.getTracks() ) { peerConnection.addTrack(track, localStream); }
-	
-	peerConnection.ontrack =
-		function(event) {
-			const audio = GE("remoteAudio");
-			
-			audio.srcObject = event.streams[0];
-			audio.play().catch(
-					err =>
-						console.log("Audio autoplay:", err)
-			);
-		};
-	
-	peerConnection.onicecandidate =
-		async function(event) {
-			if ( !event.candidate || !currentCallId ) { return; }
-			
-			const candidateRef =
-				push(
-					ref(
-						db,
-						REF.calls + "/" + currentCallId + "/" +
-						( callingBySelf ? "callerCandidates" : "receiverCandidates" )
-					)
-				);
-			
-			await set(candidateRef, event.candidate.toJSON());
-		};
-	
-	peerConnection.onconnectionstatechange =
-		function() {
-			if (!peerConnection) { return; }
-			
-			const state = peerConnection.connectionState;
-			
-			console.log("WebRTC state:", state);
-			
-			if (state === "connected") {
-				GE("callStatus").textContent = "Connected";
-				GE("muteButton").style.display = "inline-block";
-			}
-			
-			if (state === "disconnected") { GE("callStatus").textContent = "Connection interrupted."; }
-			
-			if (state === "failed") { GE("callStatus").textContent = "Connection failed."; }
-			if (state === "closed") { endCall(); }
-		};
-}
-
 function startIncomingCallListener() {
 	stopIncomingCallListener();
+	if (!currentUser) {
+		return;
+	}
 	
-	if (!currentUser) { return; }
-	
-	stopIncomingCallListener =
+	stopIncomingCallListenerRef =
 		onValue(
 			ref(db, REF.calls),
+			
 			async function(snapshot) {
 				const calls = snapshot.val();
+				if (!calls) {
+					return;
+				}
 				
-				if (!calls) { return; }
+				if (currentCallId) {
+					return;
+				}
 				
 				for ( const [callId, call] of Object.entries(calls) ) {
-					if (call.receiver !== currentUser.uid) { continue; }
+					if ( call.receiver !== currentUser.uid ) {
+						continue;
+					}
 					
-					if (call.status !== "ringing") { continue; }
-					if (currentCallId) { continue; }
+					if (call.status !== "ringing") {
+						continue;
+					}
+					
+					// Ignore extremely old ringing calls.
+					
+					if ( call.createdAt && Date.now() - call.createdAt > 60000 ) {
+						continue;
+					}
+					
+					if (currentCallId) {
+						return;
+					}
 					
 					currentCallId = callId;
 					currentCallData = call;
 					callingBySelf = false;
 					
-				   showCallPage("Incoming Call", call.callerName, "Accept");
+					endingCall = false;
 					
+					showCallPage("Incoming Call", call.callerName || "Unknown User", "Accept");
 					GE("callStatus").textContent = "Incoming call...";
-					const rejectButton = createRejectButton();
-					rejectButton.style.display = "inline-block";
-					GE("callButton").onclick = function() { acceptCall(); };
 					
+					const rejectButton = createRejectButton();
+					
+					rejectButton.style.display = "inline-block";
+					
+					GE("callButton").onclick =
+						function() {
+							acceptCall();
+						};
+
 					break;
 				}
 			}
 		);
 }
+
 
 function stopIncomingCallListener() {
 	if (stopIncomingCallListenerRef) {
@@ -1204,67 +1466,100 @@ function stopIncomingCallListener() {
 	}
 }
 
+
 async function acceptCall() {
-	if (!currentCallId || !currentCallData) { return; }
+	if (!currentCallId || !currentCallData) {
+		return;
+	}
 	
 	try {
+		endingCall = false;
 		GE("callButton").disabled = true;
 		GE("callStatus").textContent = "Connecting...";
 		
 		await createPeerConnection();
 		
-		const call = await fetch(REF.calls + "/" + currentCallId);
+		const call =
+			await fetch(
+				REF.calls +
+				"/" +
+				currentCallId
+			);
+		
 		if (!call || !call.offer) {
-			throw new Error("Call offer not found.");
+			throw new Error(
+				"Call offer not found."
+			);
 		}
 		
-		await peerConnection.setRemoteDescription(new RTCSessionDescription(call.offer));
+		await peerConnection.setRemoteDescription( new RTCSessionDescription(call.offer) );
+		remoteDescriptionSet = true;
+		
+		await flushPendingRemoteCandidates();
+		listenForCallerCandidates();
+		
 		const answer = await peerConnection.createAnswer();
+		
 		await peerConnection.setLocalDescription(answer);
 		
 		await update(
-			REF.calls + "/" + currentCallId + "/answer",
+			REF.calls +
+			"/" +
+			currentCallId +
+			"/answer",
+			
 			{
 				type: answer.type,
 				sdp: answer.sdp
 			}
 		);
 		
-		await update(REF.calls + "/" + currentCallId + "/status", "active");
-		
-		stopReceiverCandidateListener =
-			onValue(
-				ref(db, REF.calls + "/" + currentCallId + "/callerCandidates"),
-				async function(snapshot) {
-					const data =
-						snapshot.val();
-					
-					if (!data) { return; }
-					
-					for ( const candidate of Object.values(data) ) {
-						try {
-							await peerConnection.addIceCandidate(new RTCIceCandidate(candidate));
-						} catch (err) { console.error("ICE error:", err); }
-					}
-				}
-			);
+		await update(
+			REF.calls +
+			"/" +
+			currentCallId +
+			"/status",
+			"active"
+		);
 		
 		GE("callHead").textContent = "In Call";
+		GE("callStatus").textContent = "Connecting...";
 		GE("callButton").disabled = false;
 		GE("callButton").textContent = "End";
 		GE("callButton").onclick = function() { endCall(); };
 	}
+	
 	catch (err) {
-		console.error("Accept call error:", err);
+		console.error(
+			"Accept call error:",
+			err
+		);
 		GE("callStatus").textContent = "Could not connect: " + err.message;
 		await endCall();
 	}
 }
 
 async function rejectCall() {
-	if (!currentCallId) { return; }
+	if (!currentCallId) {
+		return;
+	}
 	
-	await update(REF.calls + "/" + currentCallId + "/status", "rejected");
+	const callId = currentCallId;
+	try {
+		await update(
+			REF.calls +
+			"/" +
+			callId +
+			"/status",
+			"rejected"
+		);
+	}
+	catch (err) {
+		console.error(
+			"Reject call error:",
+			err
+		);
+	}
 	
 	await cleanupCall(true);
 }
@@ -1272,100 +1567,173 @@ async function rejectCall() {
 
 window.endCall =
 	async function(silent = false) {
+		if (endingCall) {
+			return;
+		}
+		
 		if (!currentCallId) {
 			if (!silent) { hideCallPage(); }
 			return;
 		}
 		
+		endingCall = true;
+		
+		const callId = currentCallId;
+		
 		try {
-			if (currentCallData) {
-				await update(REF.calls + "/" + currentCallId + "/status", "ended" );
-			}
+			await update(
+				REF.calls +
+				"/" +
+				callId +
+				"/status",
+				"ended"
+			);
 		}
-		catch (err) { console.error("End call Firebase error:", err); }
+		catch (err) {
+			console.error(
+				"End call Firebase error:",
+				err
+			);
+		}
 		
 		await cleanupCall(!silent);
+		
+		endingCall = false;
 	};
 
-async function cleanupCall(returnToChat = true) {
+
+async function cleanupCall(
+	returnToChat = true
+) {
+	clearTimeout(
+		callTimeoutTimer
+	);
+	
+	callTimeoutTimer = null;
+	
 	const rejectButton = GE("rejectCallButton");
+	
 	if (rejectButton) { rejectButton.style.display = "none"; }
 	
-	if ( stopCallerCandidateListener ) {
+	if (stopCallerCandidateListener) {
 		stopCallerCandidateListener();
 		stopCallerCandidateListener = null;
 	}
 	
-	if ( stopReceiverCandidateListener ) {
+	if (stopReceiverCandidateListener) {
 		stopReceiverCandidateListener();
 		stopReceiverCandidateListener = null;
 	}
 	
-	if ( stopCurrentCallListener ) {
+	if (stopCurrentCallListener) {
 		stopCurrentCallListener();
 		stopCurrentCallListener = null;
 	}
 	
-	if (peerConnection) {
-		peerConnection.close();
-		peerConnection = null;
+	const pc = peerConnection;
+	
+	peerConnection = null;
+	if (pc) {
+		pc.ontrack = null;
+		pc.onicecandidate = null;
+		pc.onconnectionstatechange = null;
+		
+		try {
+			pc.close();
+		}
+		catch (err) {
+			console.error(
+				"Peer close error:",
+				err
+			);
+		}
 	}
 	
 	if (localStream) {
-		for ( const track of localStream.getTracks() ) { track.stop(); }
+		for ( const track of localStream.getTracks() ) {
+			track.stop();
+		}
+		
 		localStream = null;
 	}
 	
-	GE("remoteAudio").srcObject = null;
+	const audio = GE("remoteAudio");
+	
+	if (audio) {
+		audio.pause();
+		audio.srcObject =
+			null;
+	}
 	
 	currentCallId = null;
 	currentCallData = null;
 	callingBySelf = false;
 	isMuted = false;
+	remoteDescriptionSet = false;
+	pendingRemoteCandidates = [];
 	
 	GE("muteButton").style.display = "none";
 	GE("muteButton").textContent = "Mute";
 	
-	if (returnToChat) { hideCallPage(); }
+	if (returnToChat) {
+		showE("chatPage");
+		hideE("roomsPage");
+		hideE("callPage");
+		if (currentRoom) {
+			openRoom(currentRoom);
+		}
+	}
 }
 
 window.toggleMute =
 	function() {
-		if (!localStream) { return; }
+		if (!localStream) {
+			return;
+		}
 		
 		const tracks = localStream.getAudioTracks();
-		if (!tracks.length) { return; }
+		
+		if (!tracks.length) {
+			return;
+		}
 		
 		isMuted = !isMuted;
-		for ( const track of tracks ) { track.enabled = !isMuted; }
+		for ( const track of tracks ) {
+			track.enabled = !isMuted;
+		}
 		
-		GE("muteButton").textContent = isMuted ? "Unmute" : "Mute";};
-
+		GE("muteButton").textContent =
+			isMuted
+				? "Unmute"
+				: "Mute";
+	};
 
 function createRejectButton() {
 	let button = GE("rejectCallButton");
 	
-	if (button) { return button; }
+	if (button) {
+		return button;
+	}
 	
 	button = CE("button");
 	button.id = "rejectCallButton";
 	button.textContent = "Reject";
 	
 	button.onclick =
-		function() { rejectCall(); };
-	
+		function() {
+			rejectCall();
+		};
+
 	GE("callPage").insertBefore(
-			button,
-			GE("muteButton")
-		);
+		button,
+		GE("muteButton")
+	);
 	
 	return button;
 }
 
-const originalShowCallPage = showCallPage;
-
-GE("callButton").disabled = true;
-
+GE("callButton").disabled =
+	true;
 
 // ----------------------------------------------------------------
 // ----------------------------------------------------------------
