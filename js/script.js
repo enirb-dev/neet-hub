@@ -491,32 +491,49 @@ function startMessageListener(messageRef) {
 					(a, b) => a.tstamp - b.tstamp
 				);
 				
+				let lastUser = null;
 				for (const message of messages) {
 					const div = CE("div");
+					const isSameUser = (message.senderName == lastUser);
 					div.className = "message";
+					
+					div.style.position = "relative";
+					div.style.padding = "6px 45px 12px 10px"
+					div.style.marginTop = isSameUser ? "1px" : "5px";
+					div.style.marginBottom = isSameUser ? "1px" : "1px";
 					
 					const name = CE("b");
 					name.textContent = message.senderName || "Unknown";
 					
-					const time = CE("p")
+					const brk2 = CE("br");
+					const time = CE("span");
 					let formatted;
 					
 					if (!message.time) { message.time = null; }
 					if (message.time !== null) {
 						const d = new Date(message.time * 1000);
 						formatted =
-							`${String(d.getDate()).padStart(2, "0")}:` +
-							`${String(d.getMonth() + 1).padStart(2, "0")}:` +
-							`${d.getFullYear()}-` +
+							`${String(d.getDate()).padStart(2, "0")}/` +
+							`${String(d.getMonth() + 1).padStart(2, "0")} ` +
+							//+ `/${d.getFullYear()} ` +
 							`${String(d.getHours()).padStart(2, "0")}:` +
-							`${String(d.getMinutes()).padStart(2, "0")}:` +
-							`${String(d.getSeconds()).padStart(2, "0")}`;
+							`${String(d.getMinutes()).padStart(2, "0")}`
+							//+ `:${String(d.getSeconds()).padStart(2, "0")}`;
 					} else {
-						formatted = "null";
+						formatted = "TimeStampError";
 					}
 					
 					time.textContent = formatted;
 					time.style.fontSize = "10px";
+					time.style.position = "absolute";
+					time.style.right = "4px";
+					time.style.bottom = "2px";
+					
+					time.style.display = 'inline-block';
+					time.style.transform = "scale(0.8)";
+					time.style.transformOrigin = "bottom right";
+					time.style.whiteSpace = "nowrap";
+					time.style.color = "#888";
 					
 					let dat;
 					if (message.type == "text") {
@@ -533,10 +550,13 @@ function startMessageListener(messageRef) {
 						continue;
 					}
 					
-					div.appendChild(name);
-					div.appendChild(dat);
+					if (lastUser != message.senderName) { div.appendChild(name); }
 					div.appendChild(time);
+					div.appendChild(dat);
+					div.appendChild(brk2);
 					
+					div.style.overflow = 'hidden';
+					lastUser = message.senderName;
 					cont.appendChild(div);
 				}
 				
