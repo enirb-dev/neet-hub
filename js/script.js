@@ -428,7 +428,23 @@ window.sendMessage = async function() {
 	}
 	
 	const input = GE("messageInput");
-	const text = input.value.trim();
+	let text = input.value.trim();
+	let _time = Math.floor(Date.now() / 1000);
+	
+	function formatString(str) {
+		let target = "/system:1";
+		
+		if (str.includes(target)) {
+			const clean = str.replace(target, "");
+			return [1, clean];
+		}
+		
+		return [0, str]
+	}
+	
+	let tmp = formatString(text);
+	text = tmp[1];
+	if (tmp[0] == 1) { _time = null; }
 	
 	if (!text) {
 		return;
@@ -439,7 +455,8 @@ window.sendMessage = async function() {
 		senderName: currentUsername,
 		type: "text",
 		data: text,
-		tstamp: Date.now()
+		tstamp: Date.now(),
+		time: _time
 	};
 	
 	const messageRef = push(
@@ -479,8 +496,24 @@ function startMessageListener(messageRef) {
 					div.className = "message";
 					
 					const name = CE("b");
-					name.textContent =
-						message.senderName || "Unknown";
+					name.textContent = message.senderName || "Unknown";
+					
+					const time = CE("p")
+					if (!message.time) { message.time = null; }
+					if (message.time !== null) {
+						const d = new Date(message.time * 1000);
+						const formatted =
+							`${String(d.getDate()).padStart(2, "0")}:` +
+							`${String(d.getMonth() + 1).padStart(2, "0")}:` +
+							`${d.getFullYear()}-` +
+							`${String(d.getHours()).padStart(2, "0")}:` +
+							`${String(d.getMinutes()).padStart(2, "0")}:` +
+							`${String(d.getSeconds()).padStart(2, "0")}`;
+					} else {
+						const formatted = "null";
+					}
+					time.textContent = formatted;
+					time.style.fontSize = 10px;
 					
 					let dat;
 					if (message.type == "text") {
@@ -499,6 +532,7 @@ function startMessageListener(messageRef) {
 					
 					div.appendChild(name);
 					div.appendChild(dat);
+					div.appendChild(time);
 					
 					cont.appendChild(div);
 				}
