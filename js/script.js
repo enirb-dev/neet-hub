@@ -499,10 +499,12 @@ function startMessageListener(messageRef) {
 					name.textContent = message.senderName || "Unknown";
 					
 					const time = CE("p")
+					let formatted;
+					
 					if (!message.time) { message.time = null; }
 					if (message.time !== null) {
 						const d = new Date(message.time * 1000);
-						const formatted =
+						formatted =
 							`${String(d.getDate()).padStart(2, "0")}:` +
 							`${String(d.getMonth() + 1).padStart(2, "0")}:` +
 							`${d.getFullYear()}-` +
@@ -510,8 +512,9 @@ function startMessageListener(messageRef) {
 							`${String(d.getMinutes()).padStart(2, "0")}:` +
 							`${String(d.getSeconds()).padStart(2, "0")}`;
 					} else {
-						const formatted = "null";
+						formatted = "null";
 					}
+					
 					time.textContent = formatted;
 					time.style.fontSize = 10px;
 					
