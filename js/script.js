@@ -516,7 +516,7 @@ function startMessageListener(messageRef) {
 					}
 					
 					time.textContent = formatted;
-					time.style.fontSize = 10px;
+					time.style.fontSize = "10px";
 					
 					let dat;
 					if (message.type == "text") {
