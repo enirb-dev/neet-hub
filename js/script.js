@@ -480,9 +480,10 @@ window.sendMessage = async function() {
 	input.value = "";
 }
 
-
+let blockLoad = false;
 function startMessageListener(messageRef) {
 	
+	if (blockLoad) { return; }
 	stopMessageListener =
 		onValue(
 			messageRef,
@@ -521,10 +522,12 @@ function startMessageListener(messageRef) {
 					if (!message.seenBy.includes(currentUser.uid)) {
 						message.seenBy.push(currentUser.uid);
 						
+						blockLoad = true;
 						await update(
 							currentRoom + "/messages/" + messageId + "/seenBy",
 							message.seenBy
 						);
+						blockLoad = false;
 					}
 					
 					let tmp = true;
@@ -561,7 +564,7 @@ function startMessageListener(messageRef) {
 						formatted = "TimeStampError";
 					}
 					
-					if (message.sender === currentUser.uid && tmp) {
+					if (message.sender == currentUser.uid && tmp && (formatted != "TimeStampError")) {
 						formatted = "✔" + ' ' + formatted;
 					}
 					
