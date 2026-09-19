@@ -393,6 +393,7 @@ onAuthStateChanged(
 		
 		
 		if (currentUsername == "admin") {
+			emergencyEnabled = false;
 			GE("loginPage").style.display = "none";
 			GE("chatPage").style.display = "none";
 			GE("adminPage").style.display = "block";
