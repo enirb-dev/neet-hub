@@ -503,12 +503,11 @@ async function startMessageListener(messageRef) {
 		GE("roomTitle").textContent = "Neet Hub Chat";
 	}
 	
-	if (blockLoad) { return; }
-	
 	stopMessageListener =
 		onValue(
 			messageRef,
 			async function(snap) {
+				if (blockLoad || !currentUser) { return; }
 				
 				const cont = GE("messages");
 				cont.innerHTML = "";
