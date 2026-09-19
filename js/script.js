@@ -137,6 +137,18 @@ function waitForClick(button) {
 	});
 }
 
+function formatDate(dat) {
+	let d = new Date(dat);
+	
+	let tmp = `${String(d.getDate()).padStart(2, "0")}/` +
+	`${String(d.getMonth() + 1).padStart(2, "0")} ` +
+	//+ `/${d.getFullYear()} ` +
+	`${String(d.getHours()).padStart(2, "0")}:` +
+	`${String(d.getMinutes()).padStart(2, "0")}`;
+	//+ `:${String(d.getSeconds()).padStart(2, "0")}`;
+	
+	return tmp;
+}
 
 // ----------------------------------------------------------------
 // ----------------------------------------------------------------
@@ -572,14 +584,7 @@ async function startMessageListener(messageRef) {
 					
 					if (!message.time) { message.time = null; }
 					if (message.time !== null) {
-						const d = new Date(message.time * 1000);
-						formatted =
-							`${String(d.getDate()).padStart(2, "0")}/` +
-							`${String(d.getMonth() + 1).padStart(2, "0")} ` +
-							//+ `/${d.getFullYear()} ` +
-							`${String(d.getHours()).padStart(2, "0")}:` +
-							`${String(d.getMinutes()).padStart(2, "0")}`
-							//+ `:${String(d.getSeconds()).padStart(2, "0")}`;
+						formatted = formatDate(message.time * 1000);
 					} else {
 						formatted = "TimeStampError";
 					}
@@ -788,6 +793,40 @@ window.manageAccounts = async function() {
 };
 
 
+window.showLastSeens = async function() {
+	GE("adminPanel").style.display = "none";
+	GE("lastSeensPage").style.display = "block";
+	
+	const cont = GE("lastSeens");
+	cont.innerHTML = "";
+	
+	const data = await fetch(REF.users);
+	
+	if (!data) {
+		cont.textContent = "No accounts found.";
+		return;
+	}
+	
+	const accounts = Object.entries(data);
+	
+	for (const [uid, account] of accounts) {
+		if (account.username == "admin") { continue; }
+		const div = CE("div");
+		div.className = "account";
+		
+		const name = CE("span");
+		name.textContent = formatDate(account.lastSeen);
+		
+		const hrk = CE("hr");
+		
+		div.appendChild(name);
+		div.appendChild(hrk);
+		
+		cont.appendChild(div);
+	}
+	
+	Log("Account Manager Opened.");
+};
 window.managehistory = async function() {
 	GE("adminPanel").style.display = "none";
 	GE("historyManager").style.display = "block";
