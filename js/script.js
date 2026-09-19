@@ -150,6 +150,19 @@ function formatDate(dat) {
 	return tmp;
 }
 
+function _formatDate(dat) {
+	let d = new Date(dat);
+	
+	let tmp = `${String(d.getDate()).padStart(2, "0")}/` +
+	`${String(d.getMonth() + 1).padStart(2, "0")}/` +
+	`${d.getFullYear()} ` +
+	`${String(d.getHours()).padStart(2, "0")}:` +
+	`${String(d.getMinutes()).padStart(2, "0")}:` +
+	`${String(d.getSeconds()).padStart(2, "0")}`;
+	
+	return tmp;
+}
+
 // ----------------------------------------------------------------
 // ----------------------------------------------------------------
 
@@ -819,7 +832,7 @@ window.showLastSeens = async function() {
 		name.textContent = account.username;
 		
 		const seen = CE("span");
-		seen.textContent = formatDate(account.lastSeen);
+		seen.textContent = _formatDate(account.lastSeen);
 		
 		const brk = CE("br");
 		const hrk = CE("hr");
