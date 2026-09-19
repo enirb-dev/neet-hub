@@ -815,11 +815,17 @@ window.showLastSeens = async function() {
 		div.className = "account";
 		
 		const name = CE("span");
-		name.textContent = formatDate(account.lastSeen);
+		name.textContent = account.username;
 		
+		const seen = CE("span");
+		seen.textContent = formatDate(account.lastSeen);
+		
+		const brk = CE("br");
 		const hrk = CE("hr");
 		
 		div.appendChild(name);
+		div.appendChild(brk);
+		div.appendChild(seen);
 		div.appendChild(hrk);
 		
 		cont.appendChild(div);
