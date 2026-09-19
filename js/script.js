@@ -223,21 +223,8 @@ window.emergency = function() {
 		stopMessageListener = null;
 	}
 	
-	currentUser = null;
-	hideDiv("appWorking");
-	
-	GE("chatPage").style.display = "none";
-	GE("adminPage").style.display = "none";
-	hideDiv("adminPage");
-	
-	GE("messages").innerHTML = "";
-	
-	GE("username").value = "";
-	GE("password").value = "";
-	
-	GE("loginPage").style.display = "block";
-	
 	Log("Emergency Triggered.");
+	
 	logout();
 };
 
@@ -336,7 +323,8 @@ window.register = async function() {
 			
 			{
 				username: currentUsername,
-				createdAt: Date.now()
+				createdAt: Date.now(),
+				lastSeen: 0
 			}
 			
 		);
@@ -481,9 +469,42 @@ window.sendMessage = async function() {
 }
 
 let blockLoad = false;
-function startMessageListener(messageRef) {
+async function startMessageListener(messageRef) {
+	if (currentRoomData) {
+		GE("roomTitle").textContent = currentRoomData.name;
+		if (currentRoomData.users.length == 2) {
+			let otherUser;
+			
+			// for (const u of currentRoomData.users) { if (u != currentUser.uid) { otherUser = u; break; } }
+			otherUser = currentRoomData.users.find(
+				u => u != currentUser.uid
+			);
+			
+			let users = await fetch(REF.users);
+			let seenOther = 0;
+			
+			if (users && users[otherUser]) {
+				seenOther = users[otherUser].lastSeen || 0;
+			}
+			// for (const user of Object.entries(tUsers)) {
+				// if (user.uid == otherUser) {
+					// seenOther = user.lastSeen;
+					// break;
+				// }
+			// }
+			
+			if (Date.now() - seenOther <= 3000) {
+				GE("onlineHasher").textContent = "Online";
+			} else {
+				GE("onlineHasher").textContent = "Offline";
+			}
+		}
+	} else {
+		GE("roomTitle").textContent = "Neet Hub Chat";
+	}
 	
 	if (blockLoad) { return; }
+	
 	stopMessageListener =
 		onValue(
 			messageRef,
@@ -610,6 +631,15 @@ function startMessageListener(messageRef) {
 		);
 }
 
+const delay = (ms) => new Promise(resolve => setTimeout(resolve, ms));
+
+async function updateLastSeen() {
+	if (!currentUser) { return; }
+	await update(REF.users + "/" + currentUser.uid + "/" + "lastSeen", Date.now()).catch(err => {console.error("LastSeen Update Failed: ", err);});
+}
+
+setInterval(updateLastSeen, 500);
+
 window.logout = async function() {
 	await endCall(true);
 	
@@ -620,22 +650,28 @@ window.logout = async function() {
 	
 	stopIncomingCallListener();
 	
+	Log("Logged Out.");
 	currentUser = null;
 	
-	hideDiv("adminPage");
+	hideDiv("appWorking");
 	
-	GE("chatPage").style.display = "none";
-	GE("adminPage").style.display = "none";
-	GE("loginPage").style.display = "block";
-	GE("callPage").style.display = "none";
-	GE("logPage").style.display = "none";
+	hideE("chatPage");
+	hideE("adminPage");
+	hideDiv("adminPage");
 	
 	GE("messages").innerHTML = "";
 	
 	GE("username").value = "";
 	GE("password").value = "";
 	
-	Log("Logged Out.");
+	showE("loginPage");
+	
+	hideDiv("adminPage");
+	
+	GE("loginPage").style.display = "block";
+	hideE("callPage");
+	hideE("logPage");
+	
 	setLoginStatus("");
 	await signOut(auth);
 };
@@ -956,6 +992,7 @@ async function openRoom(roomHash) {
 		}
 	}
 	
+	blockLoad = false;
 	startMessageListener(ref(db, roomHash + "/messages"));
 }
 
@@ -1452,6 +1489,8 @@ window.callUser =
 						if (!data) {
 							return;
 						}
+						
+						currentCallData = data;
 						
 						if (data.status === "rejected") {
 							GE("callStatus").textContent = "Call rejected.";
