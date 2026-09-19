@@ -148,6 +148,7 @@ function setLoginStatus(txt) {
 
 let emergencyTriggered = false;
 const emergencyBubble = GE("emergencyBubble");
+let emergencyEnabled = true;
 
 let dragging = false;
 let moved = false;
@@ -214,7 +215,7 @@ window.clearhistory = async function() {
 };
 
 window.emergency = function() {
-	if (emergencyTriggered || DEVMODE) { return; }
+	if (emergencyTriggered || DEVMODE || !emergencyEnabled) { return; }
 	
 	emergencyTriggered = true;
 	if (stopMessageListener) {
@@ -239,6 +240,16 @@ window.emergency = function() {
 	Log("Emergency Triggered.");
 	logout();
 };
+
+window.toggleEmergencyActivity = function() {
+	if (emergencyEnabled) {
+		emergencyEnabled = false;
+		GE("emergencyToggle").textContent = "Emergency: Disabled";
+	} else {
+		emergencyEnabled = true;
+		GE("emergencyToggle").textContent = "Emergency: Enabled";
+	}
+}
 
 window.addEventListener("deviceorientation", function(event) {
 	const beta = event.beta;
@@ -456,7 +467,8 @@ window.sendMessage = async function() {
 		type: "text",
 		data: text,
 		tstamp: Date.now(),
-		time: _time
+		time: _time,
+		seenBy: [currentUser.uid]
 	};
 	
 	const messageRef = push(
@@ -474,7 +486,7 @@ function startMessageListener(messageRef) {
 	stopMessageListener =
 		onValue(
 			messageRef,
-			function(snap) {
+			async function(snap) {
 				
 				const cont = GE("messages");
 				cont.innerHTML = "";
@@ -485,14 +497,14 @@ function startMessageListener(messageRef) {
 					return;
 				}
 				
-				const messages = Object.values(data);
+				const messages = Object.entries(data);
 				
 				messages.sort(
-					(a, b) => a.tstamp - b.tstamp
+					(a, b) => a[1].tstamp - b[1].tstamp
 				);
 				
 				let lastUser = null;
-				for (const message of messages) {
+				for (const [messageId, message] of messages) {
 					const div = CE("div");
 					const isSameUser = (message.senderName == lastUser);
 					div.className = "message";
@@ -501,6 +513,32 @@ function startMessageListener(messageRef) {
 					div.style.padding = "6px 45px 12px 10px"
 					div.style.marginTop = isSameUser ? "1px" : "5px";
 					div.style.marginBottom = isSameUser ? "1px" : "1px";
+					
+					if (!Array.isArray(message.seenBy)) {
+						message.seenBy = [message.sender];
+					}
+					
+					if (!message.seenBy.includes(currentUser.uid)) {
+						message.seenBy.push(currentUser.uid);
+						
+						await update(
+							currentRoom + "/messages/" + messageId + "/seenBy",
+							message.seenBy
+						);
+					}
+					
+					let tmp = true;
+					
+					if (currentRoomData) {
+						for (const user of currentRoomData.users) {
+							if (!message.seenBy.includes(user)) {
+								tmp = false;
+								break;
+							}
+						}
+					} else {
+						tmp = false;
+					}
 					
 					const name = CE("b");
 					name.textContent = message.senderName || "Unknown";
@@ -521,6 +559,10 @@ function startMessageListener(messageRef) {
 							//+ `:${String(d.getSeconds()).padStart(2, "0")}`;
 					} else {
 						formatted = "TimeStampError";
+					}
+					
+					if (message.sender === currentUser.uid && tmp) {
+						formatted = "✔" + ' ' + formatted;
 					}
 					
 					time.textContent = formatted;
