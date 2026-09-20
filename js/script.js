@@ -1761,7 +1761,7 @@ function startIncomingCallListener() {
 					
 					GE("callButton").onclick =
 						function() {
-							acceptCall();
+							acceptCall(rejectButton);
 						};
 
 					break;
@@ -1779,7 +1779,7 @@ function stopIncomingCallListener() {
 }
 
 
-async function acceptCall() {
+async function acceptCall(rejectBut) {
 	if (!currentCallId || !currentCallData) {
 		return;
 	}
@@ -1839,6 +1839,8 @@ async function acceptCall() {
 		GE("callButton").disabled = false;
 		GE("callButton").textContent = "End";
 		GE("callButton").onclick = function() { endCall(); };
+		
+		hideE(rejectBut);
 	}
 	
 	catch (err) {
