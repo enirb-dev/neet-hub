@@ -174,6 +174,10 @@ function setLoginStatus(txt) {
 let emergencyTriggered = false;
 const emergencyBubble = GE("emergencyBubble");
 let emergencyEnabled = true;
+let notificationsEnabled = false;
+let notifiedCache = [];
+
+let focussed = true;
 
 let dragging = false;
 let moved = false;
@@ -224,7 +228,10 @@ emergencyBubble.addEventListener("pointerup", function(event) {
 
 document.addEventListener("visibilitychange", function() {
 	if (document.hidden && currentUser) {
+		focussed = false;
 		emergency();
+	} else {
+		focussed = true;
 	}
 });
 
@@ -527,6 +534,7 @@ async function startMessageListener(messageRef) {
 		}
 	} else {
 		GE("roomTitle").textContent = "Neet Hub Chat";
+		GE("onlineHasher").textContent = "";
 	}
 	
 	stopMessageListener =
@@ -656,7 +664,90 @@ async function updateLastSeen() {
 	await update(REF.users + "/" + currentUser.uid + "/" + "lastSeen", Date.now()).catch(err => {console.error("LastSeen Update Failed: ", err);});
 }
 
+async function checkNotifications() {
+	if (!currentUser) { return; }
+	
+	if (!notificationsEnabled) { return; }
+	
+	const rooms = await fetch(REF.rooms);
+	
+	if (!rooms) {
+		return;
+	}
+	
+	const data = Object.values(rooms);
+	
+	for (const room of data) {
+		if (!room.users || !room.users.includes(currentUser.uid) || room.deleted) { continue; }
+		
+		if (!room.messages) { return; }
+		const messages = Object.entries(room.messages);
+		messages.sort(
+			(a, b) => a[1].tstamp - b[1].tstamp
+		);
+		
+		const [messageId, lastMsg] = messages[messages.length - 1] || [];
+		if (!lastMsg) { continue; }
+		
+		if (!lastMsg.seenBy.includes(currentUser.uid) && lastMsg.sender !== currentUser.uid) {
+			if (!notifiedCache.includes(messageId)) {
+				await notify("Neet-Hub", `Notification From ${room.name} By ${lastMsg.senderName}`);
+				notifiedCache.push(messageId);
+			}
+		}
+	}
+}
+
 setInterval(updateLastSeen, 500);
+setInterval(checkNotifications, 500);
+
+async function notify(head, notif) {
+	if (Notification.permission !== "granted") {
+		const permission = await Notification.requestPermission();
+		
+		if (permission !== "granted") {
+			return;
+		}
+	}
+	
+	new Notification(head, {
+		body: notif
+	});
+}
+
+window.toggleNotifications = async function() {
+	if (notificationsEnabled) {
+		notificationsEnabled = false;
+		GE("notificationToggle").textContent = "Notifications: Disabled";
+		return;
+	}
+	
+	if (!("Notification" in window)) {
+		GE("notificationToggle").textContent = "Not available in your browser.";
+		await delay(1000);
+		GE("notificationToggle").textContent = "Notifications: Disabled";
+		return;
+	}
+	
+	if (Notification.permission === "denied") {
+		GE("notificationToggle").textContent = "Notifications are blocked by your browser.";
+		await delay(1000);
+		GE("notificationToggle").textContent = "Notifications: Disabled";
+		return;
+	}
+	
+	if (Notification.permission !== "granted") {
+		const permission = await Notification.requestPermission();
+		
+		if (permission != "granted") {
+			return;
+		}
+	}
+	
+	notificationsEnabled = true;
+	GE("notificationToggle").textContent = "Notifications: Enabled";
+
+}
 
 window.logout = async function() {
 	await endCall(true);
@@ -665,6 +756,8 @@ window.logout = async function() {
 		stopMessageListener();
 		stopMessageListener = null;
 	}
+	
+	if (notificationsEnabled) { toggleNotifications(); }
 	
 	stopIncomingCallListener();
 	
@@ -1088,7 +1181,7 @@ window.showRooms = async function() {
 			const latest = messages[messages.length - 1];
 			if (latest) {
 				last.textContent =
-					"\n" + latest.data.slice(0, 15);
+					"\n" + latest.data.slice(0, 30);
 			} else {
 				last.textContent = "\nNo Messages.";
 			}
@@ -1612,10 +1705,11 @@ window.callUser =
 
 
 function startIncomingCallListener() {
-	stopIncomingCallListener();
 	if (!currentUser) {
 		return;
 	}
+	
+	stopIncomingCallListener();
 	
 	stopIncomingCallListenerRef =
 		onValue(
@@ -1649,6 +1743,8 @@ function startIncomingCallListener() {
 					if (currentCallId) {
 						return;
 					}
+					
+					await notify("Neet-Hub", `Incoming Call from ${call.callerName}`);
 					
 					currentCallId = callId;
 					currentCallData = call;
