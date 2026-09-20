@@ -501,6 +501,44 @@ window.sendMessage = async function() {
 	input.value = "";
 }
 
+async function chatPageUpdate() {
+	if (currentRoomData) {
+		GE("roomTitle").textContent = currentRoomData.name;
+		if (currentRoomData.users.length == 2) {
+			let otherUser;
+			
+			// for (const u of currentRoomData.users) { if (u != currentUser.uid) { otherUser = u; break; } }
+			otherUser = currentRoomData.users.find(
+				u => u != currentUser.uid
+			);
+			
+			let users = await fetch(REF.users);
+			let seenOther = 0;
+			
+			if (users && users[otherUser]) {
+				seenOther = users[otherUser].lastSeen || 0;
+			}
+			// for (const user of Object.entries(tUsers)) {
+				// if (user.uid == otherUser) {
+					// seenOther = user.lastSeen;
+					// break;
+				// }
+			// }
+			
+			if (Date.now() - seenOther <= 3000) {
+				GE("onlineHasher").textContent = "Online";
+			} else {
+				GE("onlineHasher").textContent = "Offline";
+			}
+		}
+	} else {
+		GE("roomTitle").textContent = "Neet Hub Chat";
+		GE("onlineHasher").textContent = "";
+	}
+}
+
+setInterval(chatPageUpdate, 500);
+
 let blockLoad = false;
 async function startMessageListener(messageRef) {
 	
@@ -508,39 +546,6 @@ async function startMessageListener(messageRef) {
 		onValue(
 			messageRef,
 			async function(snap) {
-				if (currentRoomData) {
-					GE("roomTitle").textContent = currentRoomData.name;
-					if (currentRoomData.users.length == 2) {
-						let otherUser;
-						
-						// for (const u of currentRoomData.users) { if (u != currentUser.uid) { otherUser = u; break; } }
-						otherUser = currentRoomData.users.find(
-							u => u != currentUser.uid
-						);
-						
-						let users = await fetch(REF.users);
-						let seenOther = 0;
-						
-						if (users && users[otherUser]) {
-							seenOther = users[otherUser].lastSeen || 0;
-						}
-						// for (const user of Object.entries(tUsers)) {
-							// if (user.uid == otherUser) {
-								// seenOther = user.lastSeen;
-								// break;
-							// }
-						// }
-						
-						if (Date.now() - seenOther <= 3000) {
-							GE("onlineHasher").textContent = "Online";
-						} else {
-							GE("onlineHasher").textContent = "Offline";
-						}
-					}
-				} else {
-					GE("roomTitle").textContent = "Neet Hub Chat";
-					GE("onlineHasher").textContent = "";
-				}
 				if (blockLoad || !currentUser) { return; }
 				
 				const cont = GE("messages");
