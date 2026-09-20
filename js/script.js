@@ -661,6 +661,7 @@ const delay = (ms) => new Promise(resolve => setTimeout(resolve, ms));
 
 async function updateLastSeen() {
 	if (!currentUser) { return; }
+	if (!focussed) { return; }
 	await update(REF.users + "/" + currentUser.uid + "/" + "lastSeen", Date.now()).catch(err => {console.error("LastSeen Update Failed: ", err);});
 }
 
@@ -1181,7 +1182,7 @@ window.showRooms = async function() {
 			const latest = messages[messages.length - 1];
 			if (latest) {
 				last.textContent =
-					"\n" + latest.data.slice(0, 30);
+					"\n" + latest.data.slice(0, 45);
 			} else {
 				last.textContent = "\nNo Messages.";
 			}
