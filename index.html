@@ -18,6 +18,15 @@
 	<button onclick="window.location.reload(true)" class="B"> Reload (Press to fix Glitches) </button>
 	<button onclick="toggleEmergencyActivity()" class="B" id="emergencyToggle"> Emergency: Enabled </button>
 	<button onclick="toggleNotifications()" class="B" id="notificationToggle"> Notifications: Disabled </button>
+	
+	<div id="queryPage" style="display: none;" class="superTop">
+		<p id="query_q"></p>
+		<input id="query_i" type="text">
+		<input id="query_p" type="password">
+		
+		<button id="query_b" onclick="queryPageButtonClicked()"> Ok </button>
+	</div>
+	
 	<div id="loginPage">
 		<p id="loginStatus"></p>
 		<h1> Neet Hub </h1>
@@ -95,10 +104,10 @@
 				<button onclick="manageAccounts()"> Manage Accounts </button>
 				<hr>
 				
-				<button onclick="managehistory()"> Manage history </button>
+				<button onclick="showLastSeens()"> Last Seens </button>
 				<hr>
 				
-				<button onclick="showLastSeens()"> Last Seens </button>
+				<button onclick="managehistory()"> Manage history </button>
 				<hr>
 				
 				<button onclick="system(1)"> Enable New User Registration </button>
@@ -117,6 +126,8 @@
 			<div id="accountManager" class="pageStyleB">
 				<h1> Account Manager </h1>
 				<button onclick="backToAdmin()"> Back </button>
+				
+				<button onclick="admin(1)"> Reset a Password </button>
 				
 				<div id="accounts"></div>
 			</div>

@@ -43,6 +43,24 @@ const auth = getAuth(app);
 await setPersistence(auth, inMemoryPersistence).catch(err => console.error("Persistence error:", err));
 await signOut(auth);
 
+class RawAdminSDK {}
+let AdminSDK = null;
+
+function triggerUnauthorizedAdminCallAlert(propName, args) {
+	Log(`Unauthorized Admin Call Observed!!! Attempted "${String(propName)}" with "${String(args)}"`);
+	signOut(auth);
+}
+
+const safeAdmin = new Proxy(RawAdminSDK, {
+	get(target, prop, receiver) {
+		return function(...args) {
+			return triggerUnauthorizedAdminCallAlert(prop, args);
+		}
+	}
+})
+
+AdminSDK = safeAdmin;
+
 // ----------------------------------------------------------------
 // ----------------------------------------------------------------
 
@@ -55,7 +73,7 @@ let DEVMODE = false;
 
 let stopMessageListener = null;
 
-
+let queryPageButtonFlag = false;
 
 // ----------------------------------------------------------------
 // ----------------------------------------------------------------
@@ -161,6 +179,76 @@ function _formatDate(dat) {
 	`${String(d.getSeconds()).padStart(2, "0")}`;
 	
 	return tmp;
+}
+
+async function ask(query, type) {
+	const queryPage = GE("queryPage");
+	
+	showE(queryPage);
+	queryPageButtonFlag = false;
+	
+	hideE("query_i");
+	hideE("query_p");
+	
+	if (type == "input" || type == "both") {
+		showE("query_i");
+	}
+	
+	if (type == "password" || type == "both") {
+		showE("query_p");
+	}
+	
+	showE("query_q");
+	GE("query_q").textContent = query;
+	
+	while (!queryPageButtonFlag) {
+		delay(500);
+	}
+	
+	let result = [];
+	
+	if (type == "input" || type == "both") {
+		result.push(GE("query_i").value);
+	}
+	
+	if (type == "password" || type == "both") {
+		result.push(GE("query_p").value);
+	}
+	
+	queryPageButtonFlag = false;
+	hideE(queryPage);
+	
+	return result;
+}
+
+
+async function dialog(msg, immediateHide=false) {
+	const queryPage = GE("queryPage");
+	showE(queryPage);
+	
+	queryPageButtonFlag = false;
+	
+	hideE("query_i");
+	hideE("query_p");
+	
+	showE("query_q");
+	GE("query_q").textContent = msg;
+	
+	if (!immediateHide) {
+		while (!queryPageButtonFlag) {
+			delay(500);
+		}
+	} else {
+		delay(1000);
+	}
+	
+	queryPageButtonFlag = false;
+	hideE(queryPage);	
+}
+
+
+window.queryPageButtonClicked = function() {
+	queryPageButtonFlag = true;
 }
 
 // ----------------------------------------------------------------
@@ -413,6 +501,7 @@ onAuthStateChanged(
 		
 		
 		if (currentUsername == "admin") {
+			AdminSDK = await import("./swan.js");
 			if (emergencyEnabled) { toggleEmergencyActivity(); }
 			GE("loginPage").style.display = "none";
 			GE("chatPage").style.display = "none";
@@ -788,6 +877,11 @@ window.logout = async function() {
 	
 	setLoginStatus("");
 	await signOut(auth);
+	
+	if (currentUsername == "admin") {
+		AdminSDK = safeAdmin;
+		window.location.reload(true);
+	}
 };
 
 window.backToAdmin = function() {
@@ -1008,8 +1102,11 @@ window.managehistory = async function() {
 };
 
 async function deleteAccount(acc) {
-	await remove(ref(db, REF.secure + "/" + acc));
-	await remove(ref(db, REF.users + "/" + acc));
+	// await remove(ref(db, REF.secure + "/" + acc));
+	// await remove(ref(db, REF.users + "/" + acc));
+	
+	let uid = await AdminSDK.getUserByEmail(usernameToEmail(acc));
+	await AdminSDK.completelyDeleteUser(uid);
 	
 	Log(`Deleted Account: ${acc}`);
 	manageAccounts();
@@ -1043,6 +1140,16 @@ window.system = async function(hash) {
 	
 	Log(`System Call Observed: ${hash}`);
 };
+
+window.admin = async function(hash) {
+	if (hash == 1) {
+		let [user, pass] = await ask("Enter Username And Password to Update", "both");
+		let uid = await AdminSDK.getUserByEmail(usernameToEmail(user));
+		
+		await AdminSDK.resetPassword(uid, pass);
+		await dialog("Updated Password.", true);
+	}
+}
 
 window.createRoom = async function() {
 	const div = CE("div");
