@@ -73,6 +73,8 @@ let DEVMODE = false;
 
 let stopMessageListener = null;
 
+let stopNotificationListener = null;
+
 let queryPageButtonFlag = false;
 
 // ----------------------------------------------------------------
@@ -87,7 +89,8 @@ const REF = {
 	newReg: BASE + "/reg",
 	rooms: BASE + "/rooms",
 	calls: BASE + "/calls",
-	log: BASE + "/log"
+	log: BASE + "/log",
+	roomsB: BASE + "/roomsB"
 };
 
 function GE(element) { return document.getElementById(element); }
@@ -449,7 +452,8 @@ window.register = async function() {
 			{
 				username: currentUsername,
 				createdAt: Date.now(),
-				lastSeen: 0
+				lastSeen: 0,
+				notifications: {}
 			}
 			
 		);
@@ -528,6 +532,7 @@ onAuthStateChanged(
 		GE("chatPage").style.display = "block";
 		
 		startIncomingCallListener();
+		startNotificationListener();
 		openRoom(REF.globalChat);
 		
 		setLoginStatus("Logged In.");
@@ -594,6 +599,29 @@ window.sendMessage = async function() {
 	);
 	
 	await set(messageRef, message);
+	
+	if (currentRoomData) {
+		const notif = [currentRoomData.name, currentUsername, 1, false];
+		for (const _user of currentRoomData.users) {
+			
+			if (__user == currentUser.uid) { continue; }
+			
+			const notifRef = push(
+				ref(
+					db, REF.users + "/" + _user + "/notifications"
+				)
+			);
+			
+			await set(notifRef, {
+				room: currentRoom,
+				roomName: currentRoomData.name,
+				sender: currentUser.uid,
+				senderName: currentUsername,
+				type: 1,
+				timestamp: Date.now()
+			});
+		}
+	}
 }
 
 async function chatPageUpdate() {
@@ -762,10 +790,65 @@ async function updateLastSeen() {
 	await update(REF.users + "/" + currentUser.uid + "/" + "lastSeen", Date.now()).catch(err => {console.error("LastSeen Update Failed: ", err);});
 }
 
+function startNotificationListener() {
+	if (!currentUser) { return; }
+	
+	if (stopNotificationListener) {
+		stopNotificationListener();
+		stopNotificationListener = null;
+	}
+	
+	const notifRef = ref(db, REF.users + "/" + currentUser.uid + "/notifications");
+	
+	stopNotificationListener = onChildAdded(
+		notifRef,
+		async function(snapshot) {
+			const notif = snapshot.val();
+			
+			if (!notif) { return; }
+			if (!notificationsEnabled) { return; }
+			
+			if (currentRoomData && notif.room == currentRoom) {
+				await remove(snapshot.ref);
+				return;
+			}
+			
+			if (notif.type == 1) {
+				await notify("Neet-Hub", `Message From ${notif.roomName} by ${notif.senderName}.`);
+			}
+			
+			await remove(snapshot.ref);
+		}
+	);
+}
+
 async function checkNotifications() {
 	if (!currentUser) { return; }
 	
 	if (!notificationsEnabled) { return; }
+	
+	const notifU = Object.entries(await fetch(REF.users + "/" + currentUser.uid + "/notifications"));
+	
+	for (const [notifId, notif] of notifU) {
+		if (notifId in notifiedCache) { return; }
+		
+		if (currentRoomData.name = notif[0]) {
+			await remove(ref(REF.users + "/" + currentUser.uid + "/notifications" + notifId));
+			continue;
+		}
+		
+		if (notif[2] == 1) {
+			await notify("Neet-Hub", `Message from ${notif[0]} by ${notif[1]}.`);
+		}
+		
+		if (notif[2] == 2) {
+			await notify("Neet-Hub", `Incoming Call from ${notif[0]} by ${notif[1]}.`);
+		}
+		
+		await remove(ref(REF.users + "/" + currentUser.uid + "/notifications" + notifId));
+	}
+	
+	return;
 	
 	const rooms = await fetch(REF.rooms);
 	
@@ -797,7 +880,7 @@ async function checkNotifications() {
 }
 
 setInterval(updateLastSeen, 500);
-setInterval(checkNotifications, 500);
+// setInterval(checkNotifications, 500);
 
 async function notify(head, notif) {
 	if (Notification.permission !== "granted") {
@@ -853,6 +936,11 @@ window.logout = async function() {
 	if (stopMessageListener) {
 		stopMessageListener();
 		stopMessageListener = null;
+	}
+	
+	if (stopNotificationListener) {
+		stopNotificationListener();
+		stopNotificationListener = null;
 	}
 	
 	if (notificationsEnabled) { toggleNotifications(); }
@@ -1118,7 +1206,8 @@ async function deleteAccount(acc) {
 
 async function deleteRoom(roomHash) {
 	//await remove(ref(db, roomHash));
-	await update(roomHash + "/deleted", true);
+	await update(REF.rooms + "/" + roomHash + "/deleted", true);
+	await update(REF.roomsB + "/" + roomHash + "/deleted", true);
 	
 	Log(`Room Deleted: ${roomHash}`);
 	showRooms();
@@ -1169,6 +1258,14 @@ window.createRoom = async function() {
 		deleted: false
 	}
 	
+	const roomB = {
+		uid: null,
+		users = []
+		name: null,
+		deleted: false,
+		usernames: []
+	}
+	
 	const txt = CE("span");
 	txt.textContent = "Enter Room Name:"
 	
@@ -1186,9 +1283,12 @@ window.createRoom = async function() {
 	await waitForClick(but);
 	
 	room.name = inp.value.trim();
+	roomB.name = inp.value.trim();
 	
 	txt.textContent = "Enter Member Username (leave blank to finish):";
 	inp.value = "";
+	
+	const users = await fetch(REF.users);
 	
 	while (true) {
 		await waitForClick(but);
@@ -1198,13 +1298,14 @@ window.createRoom = async function() {
 			break;
 		}
 		
-		const users = await fetch(REF.users);
 		let found = false;
 		
 		if (users) {
 			for (const [uid, user] of Object.entries(users)) {
 				if (user.username == memberName) {
 					room.users.push(uid);
+					roomB.users.push(uid);
+					roomB.usernames.push(user.username);
 					found = true;
 					break;
 				}
@@ -1222,9 +1323,11 @@ window.createRoom = async function() {
 	}
 	
 	room.users.push(currentUser.uid);
+	roomB.users.push(currentUser.uid);
 	
 	const roomRef = push(ref(db, REF.rooms));
 	room.uid = roomRef.key;
+	roomB.uid = roomRef.key;
 	
 	await set(roomRef, room);
 	div.style.display = "none";
@@ -1266,7 +1369,7 @@ window.showRooms = async function() {
 	GE("chatPage").style.display = "none";
 	GE("roomsPage").style.display = "block";
 	
-	const rooms = await fetch(REF.rooms);
+	const rooms = await fetch(REF.roomsB);
 	
 	const cont = GE("rooms");
 	cont.innerHTML = "";
@@ -1287,16 +1390,17 @@ window.showRooms = async function() {
 		name.textContent = room.name || "Private Chat";
 		
 		const last = CE("span");
-		if (room.messages) {
-			const messages = Object.values(room.messages);
+		const roomM = await fetch(REF.rooms + "/" + room.uid);
+		
+		if (roomM.messages) {
+			const messages = Object.values(roomM.messages);
 			messages.sort(
 				(a, b) => a.tstamp - b.tstamp
 			);
 			
 			const latest = messages[messages.length - 1];
 			if (latest) {
-				last.textContent =
-					"\n" + latest.data.slice(0, 45);
+				last.textContent = "\n" + latest.data.slice(0, 45);
 			} else {
 				last.textContent = "\nNo Messages.";
 			}
@@ -1317,7 +1421,7 @@ window.showRooms = async function() {
 		but2.onclick = function() {
 			let ch = confirm("Delete this Room? (Can't Be Undone)");
 			
-			if (ch) { deleteRoom(REF.rooms + "/" + room.uid); }
+			if (ch) { deleteRoom(room.uid); }
 		}
 		
 		const hrk = CE("hr");
