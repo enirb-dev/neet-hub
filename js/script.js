@@ -1147,7 +1147,7 @@ async function openRoom(roomHash) {
 	}
 	
 	blockLoad = false;
-	startMessageListener(ref(db, roomHash + "/messages"));
+	await startMessageListener(ref(db, roomHash + "/messages"));
 }
 
 window.showRooms = async function() {
