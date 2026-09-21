@@ -554,6 +554,8 @@ window.sendMessage = async function() {
 	}
 	
 	const input = GE("messageInput");
+	input.value = "";
+	
 	let text = input.value.trim();
 	let _time = Math.floor(Date.now() / 1000);
 	
@@ -591,8 +593,6 @@ window.sendMessage = async function() {
 	);
 	
 	await set(messageRef, message);
-	
-	input.value = "";
 }
 
 async function chatPageUpdate() {
