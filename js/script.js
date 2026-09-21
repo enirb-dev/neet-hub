@@ -650,14 +650,14 @@ async function chatPageUpdate() {
 			let seenOther = await fetch(REF.users + "/" + otherUser + "/lastSeen") || 0;
 			
 			if (Date.now() - seenOther <= 3000) {
-				GE("onlineHasher").textContent = "Online";
+				GE("onlineHasher").textContent = "Online"; showE("onlineDot");
 			} else {
-				GE("onlineHasher").textContent = "Offline";
+				GE("onlineHasher").textContent = "Offline"; hideE("onlineDot");
 			}
 		}
 	} else {
 		GE("roomTitle").textContent = "Neet Hub Chat";
-		GE("onlineHasher").textContent = "";
+		GE("onlineHasher").textContent = ""; hideE("onlineDot");
 	}
 }
 
