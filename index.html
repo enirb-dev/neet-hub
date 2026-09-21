@@ -19,8 +19,8 @@
 	<button onclick="toggleEmergencyActivity()" class="B" id="emergencyToggle"> Emergency: Enabled </button>
 	<button onclick="toggleNotifications()" class="B" id="notificationToggle"> Notifications: Disabled </button>
 	
-	<div id="queryPage" style="display: none;" class="superTop">
-		<p id="query_q"></p>
+	<div id="queryPage" class="superTop" hidden>
+		<p id="query_q" style="color: white"></p>
 		<input id="query_i" type="text">
 		<input id="query_p" type="password">
 		
@@ -99,15 +99,11 @@
 				<h1> Admin Control Panel </h1>
 				
 				<button onclick="clearhistory()"> Clear history </button>
+				<button onclick="managehistory()"> Manage history </button>
 				<hr>
 				
 				<button onclick="manageAccounts()"> Manage Accounts </button>
-				<hr>
-				
 				<button onclick="showLastSeens()"> Last Seens </button>
-				<hr>
-				
-				<button onclick="managehistory()"> Manage history </button>
 				<hr>
 				
 				<button onclick="system(1)"> Enable New User Registration </button>

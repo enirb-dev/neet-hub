@@ -184,7 +184,7 @@ function _formatDate(dat) {
 async function ask(query, type) {
 	const queryPage = GE("queryPage");
 	
-	showE(queryPage);
+	showE("queryPage");
 	queryPageButtonFlag = false;
 	
 	hideE("query_i");
@@ -202,7 +202,7 @@ async function ask(query, type) {
 	GE("query_q").textContent = query;
 	
 	while (!queryPageButtonFlag) {
-		delay(500);
+		await delay(500);
 	}
 	
 	let result = [];
@@ -215,8 +215,11 @@ async function ask(query, type) {
 		result.push(GE("query_p").value);
 	}
 	
+	GE("query_i").value = "";
+	GE("query_p").value = "";
+	
 	queryPageButtonFlag = false;
-	hideE(queryPage);
+	hideE("queryPage");
 	
 	return result;
 }
@@ -224,7 +227,8 @@ async function ask(query, type) {
 
 async function dialog(msg, immediateHide=false) {
 	const queryPage = GE("queryPage");
-	showE(queryPage);
+	
+	showE("queryPage");
 	
 	queryPageButtonFlag = false;
 	
@@ -236,14 +240,15 @@ async function dialog(msg, immediateHide=false) {
 	
 	if (!immediateHide) {
 		while (!queryPageButtonFlag) {
-			delay(500);
+			await delay(500);
 		}
 	} else {
-		delay(1000);
+		await delay(1000);
 	}
 	
 	queryPageButtonFlag = false;
-	hideE(queryPage);	
+	hideE("queryPage");
+	
 }
 
 
@@ -501,7 +506,7 @@ onAuthStateChanged(
 		
 		
 		if (currentUsername == "admin") {
-			AdminSDK = await import("./swan.js");
+			//AdminSDK = await import("./swan.js");
 			if (emergencyEnabled) { toggleEmergencyActivity(); }
 			GE("loginPage").style.display = "none";
 			GE("chatPage").style.display = "none";
@@ -1102,11 +1107,9 @@ window.managehistory = async function() {
 };
 
 async function deleteAccount(acc) {
-	// await remove(ref(db, REF.secure + "/" + acc));
-	// await remove(ref(db, REF.users + "/" + acc));
 	
-	let uid = await AdminSDK.getUserByEmail(usernameToEmail(acc));
-	await AdminSDK.completelyDeleteUser(uid);
+	//let uid = await AdminSDK.getUserByEmail(usernameToEmail(acc));
+	//await AdminSDK.completelyDeleteUser(uid);
 	
 	Log(`Deleted Account: ${acc}`);
 	manageAccounts();
@@ -1144,10 +1147,11 @@ window.system = async function(hash) {
 window.admin = async function(hash) {
 	if (hash == 1) {
 		let [user, pass] = await ask("Enter Username And Password to Update", "both");
-		let uid = await AdminSDK.getUserByEmail(usernameToEmail(user));
+		//let uid = await AdminSDK.getUserByEmail(usernameToEmail(user));
 		
-		await AdminSDK.resetPassword(uid, pass);
-		await dialog("Updated Password.", true);
+		//await AdminSDK.resetPassword(uid, pass);
+		//await dialog("Updated Password.", true);
+		await dialog("Deprecated.", true);
 	}
 }
 

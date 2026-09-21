@@ -1,8 +1,8 @@
 
-import { initializeApp, cert } from "firebase-admin/app";
-import { getAuth } from "firebase-admin/auth";
+import { initializeApp, cert } from "https://esm.sh/firebase-admin@12.0.0/app";
+import { getAuth } from "https://esm.sh/firebase-admin@12.0.0/auth";
 
-import { getDatabase } from "firebase-admin/database";
+import { getDatabase } from "https://esm.sh/firebase-admin@12.0.0/database";
 
 
 const serviceAccount = {
