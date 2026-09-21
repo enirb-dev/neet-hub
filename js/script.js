@@ -574,14 +574,16 @@ async function startMessageListener(messageRef) {
 					}
 					
 					if (!message.seenBy.includes(currentUser.uid)) {
-						message.seenBy.push(currentUser.uid);
-						
-						blockLoad = true;
-						await update(
-							currentRoom + "/messages/" + messageId + "/seenBy",
-							message.seenBy
-						);
-						blockLoad = false;
+						if (focussed) {
+							message.seenBy.push(currentUser.uid);
+							
+							blockLoad = true;
+							await update(
+								currentRoom + "/messages/" + messageId + "/seenBy",
+								message.seenBy
+							);
+							blockLoad = false;
+						}
 					}
 					
 					let tmp = true;
