@@ -503,6 +503,7 @@ window.sendMessage = async function() {
 
 async function chatPageUpdate() {
 	if (currentRoomData) {
+		if (!currentUser) { return; }
 		GE("roomTitle").textContent = currentRoomData.name;
 		if (currentRoomData.users.length == 2) {
 			let otherUser;
