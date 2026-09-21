@@ -73,7 +73,7 @@ body {  /* nothing for general, # for id, . for class */
 		.superTop {
 			position: fixed;
 			z-index: 9999;
-			top: 100px;
+			top: 99px;
 			
 			left: 50%;
 			transform: translateX(-50%);
