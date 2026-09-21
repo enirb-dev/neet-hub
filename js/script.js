@@ -600,11 +600,22 @@ window.sendMessage = async function() {
 	
 	await set(messageRef, message);
 	
+	const lastMeta = {
+		senderName: currentUsername,
+		data: text,
+		tstamp: Date.now()
+	}
+	
 	if (currentRoomData) {
+		await set(
+			ref(db, REF.roomsB + "/" + currentRoomData.uid + "/lastMessageMeta"),
+			lastMeta
+		);
+		
 		const notif = [currentRoomData.name, currentUsername, 1, false];
 		for (const _user of currentRoomData.users) {
 			
-			if (__user == currentUser.uid) { continue; }
+			if (_user == currentUser.uid) { continue; }
 			
 			const notifRef = push(
 				ref(
@@ -636,12 +647,7 @@ async function chatPageUpdate() {
 				u => u != currentUser.uid
 			);
 			
-			let users = await fetch(REF.users);
-			let seenOther = 0;
-			
-			if (users && users[otherUser]) {
-				seenOther = users[otherUser].lastSeen || 0;
-			}
+			let seenOther = await fetch(REF.users + "/" + otherUser + "/lastSeen") || 0;
 			
 			if (Date.now() - seenOther <= 3000) {
 				GE("onlineHasher").textContent = "Online";
@@ -658,6 +664,7 @@ async function chatPageUpdate() {
 setInterval(chatPageUpdate, 500);
 
 let blockLoad = false;
+
 async function startMessageListener(messageRef) {
 	
 	stopMessageListener =
@@ -879,7 +886,7 @@ async function checkNotifications() {
 	}
 }
 
-setInterval(updateLastSeen, 500);
+setInterval(updateLastSeen, 2000);
 // setInterval(checkNotifications, 500);
 
 async function notify(head, notif) {
@@ -1260,10 +1267,15 @@ window.createRoom = async function() {
 	
 	const roomB = {
 		uid: null,
-		users = []
+		users: [],
+		usernames: [],
 		name: null,
 		deleted: false,
-		usernames: []
+		lastMessageMeta: {
+			senderName: null,
+			data: null,
+			tstamp: 0
+		}
 	}
 	
 	const txt = CE("span");
@@ -1330,6 +1342,11 @@ window.createRoom = async function() {
 	roomB.uid = roomRef.key;
 	
 	await set(roomRef, room);
+	await set(
+		ref(db, REF.roomsB + "/" + roomB.uid),
+		roomB
+	);
+	
 	div.style.display = "none";
 	
 	Log(`Room Created: ${room.uid}:${room.name}`);
@@ -1354,6 +1371,33 @@ async function openRoom(roomHash) {
 		const room = await fetch(roomHash);
 		currentRoomData = room;
 		
+		let tmp = await fetch(REF.roomsB + "/" + currentRoomData.uid);
+		
+		if (!tmp) {
+			let users = await fetch(REF.users);
+			let usernames = [];
+			
+			for (const user of currentRoomData.users) {
+				usernames.push(users[user].username);
+			}
+			
+			const roomB = {
+				uid: currentRoomData.uid,
+				users: currentRoomData.users,
+				usernames: usernames,
+				name: currentRoomData.name,
+				deleted: currentRoomData.deleted,
+				
+				lastMessageMeta: {
+					data: null,
+					senderName: null,
+					tstamp: null
+				}
+			};
+			
+			await set(ref(db, REF.roomsB + "/" + roomB.uid), roomB);
+		}
+		
 		if (room && room.users && room.users.length >= 2) {
 			GE("callButton").disabled = false;
 		} else {
@@ -1368,6 +1412,8 @@ async function openRoom(roomHash) {
 window.showRooms = async function() {
 	GE("chatPage").style.display = "none";
 	GE("roomsPage").style.display = "block";
+	
+	currentRoomData = null;
 	
 	const rooms = await fetch(REF.roomsB);
 	
@@ -1384,25 +1430,49 @@ window.showRooms = async function() {
 	for (const room of data) {
 		if (!room.users || !room.users.includes(currentUser.uid) || room.deleted) { continue; }
 		
+		/*
+		let tmp = await fetch(REF.roomsB + "/" + room.uid);
+		
+		if (!tmp) {
+			let users = await fetch(REF.users);
+			let usernames = [];
+			
+			for (const user of room.users) {
+				usernames.push(users[user].username);
+			}
+			
+			const roomB = {
+				uid: room.uid,
+				users: room.users,
+				usernames: usernames,
+				name: room.name,
+				deleted: room.deleted,
+				
+				lastMessageMeta: {
+					data: null,
+					senderName: null,
+					tstamp: null
+				}
+			};
+			
+			await set(ref(db, REF.roomsB + "/" + roomB.uid), roomB);
+		}
+		*/
+		
 		const div = CE("div");
 		
 		const name = CE("b");
 		name.textContent = room.name || "Private Chat";
 		
 		const last = CE("span");
-		const roomM = await fetch(REF.rooms + "/" + room.uid);
 		
-		if (roomM.messages) {
-			const messages = Object.values(roomM.messages);
-			messages.sort(
-				(a, b) => a.tstamp - b.tstamp
-			);
-			
-			const latest = messages[messages.length - 1];
-			if (latest) {
-				last.textContent = "\n" + latest.data.slice(0, 45);
+		// senderName, data, tstamp
+		
+		if (room.lastMessageMeta) {
+			if (room.lastMessageMeta.data) {
+				last.textContent = "\n" + room.lastMessageMeta.data.slice(0, 45);
 			} else {
-				last.textContent = "\nNo Messages.";
+				last.textContent = "n\No Messages.";
 			}
 		} else {
 			last.textContent = "\nNo Messages.";
@@ -1419,9 +1489,13 @@ window.showRooms = async function() {
 		but2.className = "B";
 		but2.textContent = "Delete";
 		but2.onclick = function() {
+			let t = emergencyEnabled;
+			emergencyEnabled = false;
+			
 			let ch = confirm("Delete this Room? (Can't Be Undone)");
 			
 			if (ch) { deleteRoom(room.uid); }
+			emergencyEnabled = t;
 		}
 		
 		const hrk = CE("hr");
