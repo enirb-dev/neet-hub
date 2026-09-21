@@ -554,9 +554,10 @@ window.sendMessage = async function() {
 	}
 	
 	const input = GE("messageInput");
-	input.value = "";
 	
 	let text = input.value.trim();
+	input.value = "";
+	
 	let _time = Math.floor(Date.now() / 1000);
 	
 	function formatString(str) {
