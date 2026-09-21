@@ -1,1794 +1,0 @@
-<!DOCTYPE html>
-<html>
-<head>
-    <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">    <title>Neet Hub</title>    <style>        body {
-            font-family: Arial, sans-serif;
-            background: #f2f2f2;
-            margin: 0;
-        }        #loginPage,
-        .pageStyleB {
-            max-width: 500px;
-            margin: 50px auto;
-            background: white;
-            padding: 25px;
-            border-radius: 12px;
-        }        input {
-            width: 100%;
-            padding: 10px;
-            margin: 8px 0;
-            box-sizing: border-box;
-        }        button {
-            padding: 10px 15px;
-            margin: 5px;
-            cursor: pointer;
-        }        button:disabled {
-            cursor: not-allowed;
-            opacity: 0.5;
-        }        #messages {
-            height: 400px;
-            overflow-y: auto;
-            border: 1px solid #ccc;
-            padding: 10px;
-            margin-bottom: 10px;
-        }        .message {
-            background: #eeeeee;
-            padding: 8px;
-            margin: 5px;
-            border-radius: 8px;
-        }        .message b {
-            display: block;
-        }        .pageStyleB {
-            display: none;
-        }        #emergencyBubble {
-            position: fixed;
-            right: 20px;
-            bottom: 50px;            width: 55px;
-            height: 55px;            border-radius: 50%;
-            border: none;            background: #222;
-            color: white;            font-size: 20px;
-            cursor: grab;
-            z-index: 9999;            margin: 0;
-            padding: 0;            user-select: none;
-            touch-action: none;
-        }        #emergencyBubble:active {
-            cursor: grabbing;
-        }        .mask-password {
-            -webkit-text-security: disc;
-            text-security: disc;
-        }        #callPage {
-            text-align: center;
-        }        #callStatus {
-            margin: 20px;
-            font-size: 18px;
-        }        #muteButton {
-            display: none;
-        }        #remoteAudio {
-            display: none;
-        }    </style></head><body>    <button id="emergencyBubble">●</button>    <!-- LOGIN -->    <div id="loginPage">        <h1>Neet Hub</h1>
-        <h2>Login</h2>        <input
-            id="username"
-            type="text"
-            placeholder="username"
-            autocomplete="off"
-        >        <input
-            id="password"
-            type="text"
-            class="mask-password"
-            placeholder="Password"
-            autocomplete="new-password"
-        >        <button onclick="login()">Login</button>
-        <button onclick="register()">Register</button>        <p id="loginStatus"></p>    </div>
-    <!-- CHAT -->    <div id="chatPage" class="pageStyleB">        <h1>Neet Hub Chat</h1>        <p>
-            Logged in as:
-            <b id="currentUser"></b>
-        </p>        <button onclick="logout()">Logout</button>        <hr>        <div id="messages"></div>        <input
-            id="messageInput"
-            type="text"
-            placeholder="Type a message..."
-        >        <button onclick="sendMessage()">Send</button>        <button
-            id="callButton"
-            onclick="callUser()"
-            disabled
-        >
-            Call
-        </button>        <hr>        <button onclick="showRooms()">
-            Private Chats
-        </button>    </div>
-    <!-- ROOMS -->    <div id="roomsPage" class="pageStyleB">        <button onclick="backToGlobal()">
-            Back
-        </button>        <h1>Private Chats</h1>        <hr>        <button onclick="createRoom()">
-            Create Room
-        </button>        <div id="rooms"></div>    </div>
-    <!-- ADMIN -->    <div id="adminPage" class="pageStyleB">        <button onclick="logout()">Exit</button>        <hr>        <div id="adminPanel" class="pageStyleB">            <h1>Admin Control Panel</h1>            <button onclick="clearhistory()">
-                Clear history
-            </button>            <hr>            <button onclick="manageAccounts()">
-                Manage Accounts
-            </button>            <hr>            <button onclick="managehistory()">
-                Manage history
-            </button>            <hr>            <button onclick="system(1)">
-                Enable New User Registration
-            </button>            <button onclick="system(2)">
-                Disable New User Registration
-            </button>            <hr>            <button onclick="system(3)">
-                Freeze System
-            </button>            <button onclick="system(4)">
-                Unfreeze System
-            </button>            <hr>        </div>
-        <div id="accountManager" class="pageStyleB">            <h1>Account Manager</h1>            <button onclick="backToAdmin()">
-                Back
-            </button>            <div id="accounts"></div>        </div>
-        <div id="historyManager" class="pageStyleB">            <h1>History Manager</h1>            <button onclick="backToAdmin()">
-                Back
-            </button>            <div id="history"></div>        </div>    </div>
-    <!-- CALL PAGE -->    <div id="callPage" class="pageStyleB">        <h1>Neet Hub Call</h1>        <h2 id="callHead"></h2>        <h2 id="callPerson"></h2>        <p id="callStatus"></p>        <button id="callButtonMain"></button>        <button
-            id="muteButton"
-            onclick="toggleMute()"
-        >
-            Mute
-        </button>        <audio
-            id="remoteAudio"
-            autoplay
-            playsinline
-        ></audio>    </div>
-    <script type="module">        import {
-            initializeApp
-        }
-        from
-        "https://www.gstatic.com/firebasejs/12.1.0/firebase-app.js";
-        import {
-            getDatabase,
-            ref,
-            set,
-            get,
-            push,
-            onValue,
-            remove
-        }
-        from
-        "https://www.gstatic.com/firebasejs/12.1.0/firebase-database.js";
-        import {
-            getAuth,
-            createUserWithEmailAndPassword,
-            signInWithEmailAndPassword,
-            signOut,
-            onAuthStateChanged
-        }
-        from
-        "https://www.gstatic.com/firebasejs/12.1.0/firebase-auth.js";
-        /*
-        ============================================================
-        FIREBASE
-        ============================================================
-        */
-        const firebaseConfig = {            apiKey:
-                "AIzaSyAZZ7Rima-d6qFOUeiWKykUI_5yqW4vKig",            authDomain:
-                "neet-hub-33eef.firebaseapp.com",            databaseURL:
-                "https://neet-hub-33eef-default-rtdb.asia-southeast1.firebasedatabase.app",            projectId:
-                "neet-hub-33eef",            storageBucket:
-                "neet-hub-33eef.firebasestorage.app",            messagingSenderId:
-                "654893266181",            appId:
-                "1:654893266181:web:a6509fd16c469c47e5336c",            measurementId:
-                "G-HPRY0H6ZKX"
-        };
-        const app =
-            initializeApp(firebaseConfig);
-        const db =
-            getDatabase(app);
-        const auth =
-            getAuth(app);
-        /*
-        ============================================================
-        GLOBAL VARIABLES
-        ============================================================
-        */
-        let currentUser = null;        let currentUsername = null;        let currentRoom = null;        let currentRoomData = null;        let stopMessageListener = null;
-        /*
-        ============================================================
-        CALL VARIABLES
-        ============================================================
-        */
-        let peerConnection = null;        let localStream = null;        let currentCallId = null;        let currentCallData = null;        let stopCallListener = null;        let stopCallerCandidateListener = null;        let stopReceiverCandidateListener = null;        let callingBySelf = false;        let isMuted = false;        let pendingRemoteCandidates = [];
-        /*
-        ============================================================
-        FIREBASE PATHS
-        ============================================================
-        */
-        const BASE = "";
-        const REF = {            secure:
-                BASE + "/secure",            users:
-                BASE + "/users",            globalChat:
-                BASE + "/messages",            frozen:
-                BASE + "/frozen",            newReg:
-                BASE + "/reg",            rooms:
-                BASE + "/rooms",            calls:
-                BASE + "/calls"        };
-        /*
-        ============================================================
-        HELPERS
-        ============================================================
-        */
-        function GE(element) {            return document.getElementById(element);        }
-        function CE(element) {            return document.createElement(element);        }
-        function usernameToEmail(uname) {            return uname + "@neethub.enirb.in";        }
-        async function update(key, value) {            await set(
-                ref(db, key),
-                value
-            );        }
-        async function fetch(key) {            const snap =
-                await get(ref(db, key));            if (snap.exists()) {                return snap.val();            }            return null;        }
-        function waitForClick(button) {            return new Promise(function(resolve) {                button.onclick =
-                    function() {                        resolve();                    };            });        }
-        function setLoginStatus(txt) {            GE("loginStatus").textContent = txt;        }
-        /*
-        ============================================================
-        EMERGENCY BUTTON
-        ============================================================
-        */
-        let emergencyTriggered = false;        const emergencyBubble =
-            GE("emergencyBubble");
-        let dragging = false;        let moved = false;        let offsetX = 0;        let offsetY = 0;
-        emergencyBubble.addEventListener(
-            "pointerdown",
-            function(event) {                dragging = true;                moved = false;                const rect =
-                    emergencyBubble.getBoundingClientRect();                offsetX =
-                    event.clientX - rect.left;                offsetY =
-                    event.clientY - rect.top;                emergencyBubble.setPointerCapture(
-                    event.pointerId
-                );            }
-        );
-        emergencyBubble.addEventListener(
-            "pointermove",
-            function(event) {                if (!dragging) {                    return;                }                moved = true;                let x =
-                    event.clientX - offsetX;                let y =
-                    event.clientY - offsetY;
-                const maxX =
-                    window.innerWidth -
-                    emergencyBubble.offsetWidth;
-                const maxY =
-                    window.innerHeight -
-                    emergencyBubble.offsetHeight;
-                x =
-                    Math.max(
-                        0,
-                        Math.min(x, maxX)
-                    );
-                y =
-                    Math.max(
-                        0,
-                        Math.min(y, maxY)
-                    );
-                emergencyBubble.style.left =
-                    x + "px";                emergencyBubble.style.top =
-                    y + "px";
-                emergencyBubble.style.right =
-                    "auto";                emergencyBubble.style.bottom =
-                    "auto";            }
-        );
-        emergencyBubble.addEventListener(
-            "pointerup",
-            function(event) {                dragging = false;                emergencyBubble.releasePointerCapture(
-                    event.pointerId
-                );
-                if (!moved) {                    emergency();                }            }
-        );
-        /*
-        ============================================================
-        CLEAR HISTORY
-        ============================================================
-        */
-        window.clearhistory =
-            async function() {                await update(
-                    REF.globalChat,
-                    {}
-                );            };
-        /*
-        ============================================================
-        EMERGENCY
-        ============================================================
-        */
-        window.emergency =
-            async function() {                if (emergencyTriggered) {                    return;                }                emergencyTriggered = true;
-                await endCall(true);
-                if (stopMessageListener) {                    stopMessageListener();                    stopMessageListener = null;                }
-                currentUser = null;
-                GE("chatPage").style.display =
-                    "none";                GE("adminPage").style.display =
-                    "none";                GE("roomsPage").style.display =
-                    "none";                GE("callPage").style.display =
-                    "none";
-                Array.from(
-                    GE("adminPage").children
-                ).forEach(child => {                    child.style.display =
-                        "none";                });
-                GE("messages").innerHTML =
-                    "";
-                GE("username").value =
-                    "";                GE("password").value =
-                    "";
-                GE("loginPage").style.display =
-                    "block";
-                await signOut(auth);            };
-        window.addEventListener(
-            "deviceorientation",
-            function(event) {                const beta =
-                    event.beta;
-                if (beta === null) {                    return;                }
-                if (Math.abs(beta) > 150) {                    emergency();                }            }
-        );
-        /*
-        ============================================================
-        REGISTER
-        ============================================================
-        */
-        window.register =
-            async function() {                const user =
-                    GE("username")
-                    .value
-                    .trim()
-                    .toLowerCase();
-                const pass =
-                    GE("password")
-                    .value
-                    .trim();
-                if (!user || !pass) {                    setLoginStatus(
-                        "Enter username and Password."
-                    );                    return;                }
-                if (
-                    await fetch(REF.newReg) === false
-                ) {                    setLoginStatus(
-                        "Registrations Closed By Admin."
-                    );                    return;                }
-                if (
-                    !/^[a-z0-9_]{3,20}$/.test(user)
-                ) {                    setLoginStatus(
-                        "username must contain only letters, numbers or _. 3-20 characters."
-                    );                    return;                }
-                const email =
-                    usernameToEmail(user);
-                try {                    const cred =
-                        await createUserWithEmailAndPassword(
-                            auth,
-                            email,
-                            pass
-                        );
-                    currentUser =
-                        cred.user;
-                    currentUsername =
-                        user;
-                    await update(
-                        REF.users +
-                        "/" +
-                        currentUser.uid,                        {
-                            username:
-                                currentUsername,                            createdAt:
-                                Date.now()
-                        }
-                    );
-                    setLoginStatus(
-                        "Account Created! You can now login."
-                    );
-                }
-                catch (err) {                    setLoginStatus(
-                        "Error Registering User: " +
-                        err.message
-                    );                }            };
-        /*
-        ============================================================
-        LOGIN
-        ============================================================
-        */
-        window.login =
-            async function() {                emergencyTriggered =
-                    false;
-                const user =
-                    GE("username")
-                    .value
-                    .trim()
-                    .toLowerCase();
-                const pass =
-                    GE("password")
-                    .value
-                    .trim();
-                if (!user || !pass) {                    setLoginStatus(
-                        "Enter username and Password."
-                    );                    return;                }
-                if (
-                    (await fetch(REF.frozen) === true)
-                    &&
-                    user !== "admin"
-                ) {                    setLoginStatus(
-                        "System Frozen by Admin."
-                    );                    return;                }
-                const email =
-                    usernameToEmail(user);
-                try {                    await signInWithEmailAndPassword(
-                        auth,
-                        email,
-                        pass
-                    );                }
-                catch (err) {                    setLoginStatus(
-                        "Error Logging In: " +
-                        err.message
-                    );                }            };
-        /*
-        ============================================================
-        AUTH STATE
-        ============================================================
-        */
-        onAuthStateChanged(
-            auth,
-            async function(user) {                if (user) {                    currentUser =
-                        user;
-                    const data =
-                        await fetch(
-                            REF.users +
-                            "/" +
-                            user.uid
-                        );
-                    if (data) {                        currentUsername =
-                            data.username;                    }
-                    /*
-                    ADMIN
-                    */
-                    if (
-                        currentUsername ===
-                        "admin"
-                    ) {                        GE("loginPage")
-                            .style.display =
-                            "none";                        GE("chatPage")
-                            .style.display =
-                            "none";                        GE("roomsPage")
-                            .style.display =
-                            "none";                        GE("callPage")
-                            .style.display =
-                            "none";                        GE("adminPage")
-                            .style.display =
-                            "block";                        GE("adminPanel")
-                            .style.display =
-                            "block";                        return;                    }
-                    /*
-                    NORMAL USER
-                    */
-                    GE("currentUser")
-                        .textContent =
-                        currentUsername;
-                    GE("loginPage")
-                        .style.display =
-                        "none";
-                    GE("adminPage")
-                        .style.display =
-                        "none";
-                    GE("chatPage")
-                        .style.display =
-                        "block";
-                    await openRoom(
-                        REF.globalChat
-                    );
-                    startIncomingCallListener();
-                }
-                else {                    currentUser =
-                        null;                    currentUsername =
-                        null;
-                    if (stopMessageListener) {                        stopMessageListener();                        stopMessageListener =
-                            null;                    }
-                    stopIncomingCallListener();                }            }
-        );
-        /*
-        ============================================================
-        SEND MESSAGE
-        ============================================================
-        */
-        window.sendMessage =
-            async function() {                if (
-                    !currentUser ||
-                    !currentRoom
-                ) {                    return;                }
-                const input =
-                    GE("messageInput");
-                const text =
-                    input.value.trim();
-                if (!text) {                    return;                }
-                const message = {                    sender:
-                        currentUser.uid,                    senderName:
-                        currentUsername,                    type:
-                        "text",                    data:
-                        text,                    tstamp:
-                        Date.now()                };
-                const messageRef =
-                    push(
-                        ref(
-                            db,
-                            currentRoom +
-                            "/messages"
-                        )
-                    );
-                await set(
-                    messageRef,
-                    message
-                );
-                input.value =
-                    "";            };
-        /*
-        ============================================================
-        MESSAGE LISTENER
-        ============================================================
-        */
-        function startMessageListener(
-            messageRef
-        ) {            stopMessageListener =
-                onValue(
-                    messageRef,
-                    function(snap) {                        const cont =
-                            GE("messages");
-                        cont.innerHTML =
-                            "";
-                        const data =
-                            snap.val();
-                        if (!data) {                            return;                        }
-                        const messages =
-                            Object.values(data);
-                        messages.sort(
-                            (a, b) =>
-                                a.tstamp -
-                                b.tstamp
-                        );
-                        for (
-                            const message
-                            of messages
-                        ) {                            const div =
-                                CE("div");
-                            div.className =
-                                "message";
-                            const name =
-                                CE("b");
-                            name.textContent =
-                                message.senderName ||
-                                "Unknown";
-                            let dat;
-                            if (
-                                message.type ===
-                                "text"
-                            ) {                                dat =
-                                    CE("span");                                dat.textContent =
-                                    message.data;                            }                            else if (
-                                message.type ===
-                                "image"
-                            ) {                                dat =
-                                    CE("img");                                dat.src =
-                                    message.data;                            }                            else if (
-                                message.type ===
-                                "video"
-                            ) {                                dat =
-                                    CE("video");                                dat.src =
-                                    message.data;                                dat.controls =
-                                    true;                            }                            else {                                continue;                            }
-                            div.appendChild(name);                            div.appendChild(dat);                            cont.appendChild(div);                        }
-                        cont.scrollTop =
-                            cont.scrollHeight;                    }
-                );        }
-        /*
-        ============================================================
-        LOGOUT
-        ============================================================
-        */
-        window.logout =
-            async function() {                await endCall(true);
-                if (stopMessageListener) {                    stopMessageListener();                    stopMessageListener =
-                        null;                }
-                stopIncomingCallListener();
-                currentUser =
-                    null;
-                currentUsername =
-                    null;
-                currentRoom =
-                    null;
-                currentRoomData =
-                    null;
-                GE("chatPage")
-                    .style.display =
-                    "none";
-                GE("roomsPage")
-                    .style.display =
-                    "none";
-                GE("callPage")
-                    .style.display =
-                    "none";
-                GE("adminPage")
-                    .style.display =
-                    "none";
-                Array.from(
-                    GE("adminPage").children
-                ).forEach(child => {                    child.style.display =
-                        "none";                });
-                GE("loginPage")
-                    .style.display =
-                    "block";
-                GE("messages")
-                    .innerHTML =
-                    "";
-                GE("username").value =
-                    "";                GE("password").value =
-                    "";
-                setLoginStatus("");
-                await signOut(auth);            };
-        /*
-        ============================================================
-        ADMIN NAVIGATION
-        ============================================================
-        */
-        window.backToAdmin =
-            function() {                Array.from(
-                    GE("adminPage").children
-                ).forEach(child => {                    child.style.display =
-                        "none";                });
-                GE("adminPanel")
-                    .style.display =
-                    "block";            };
-        window.backToGlobal =
-            async function() {                GE("roomsPage")
-                    .style.display =
-                    "none";
-                GE("chatPage")
-                    .style.display =
-                    "block";
-                const cRoom =
-                    GE("cRoom");
-                if (cRoom) {                    cRoom.remove();                }
-                await openRoom(
-                    REF.globalChat
-                );            };
-        /*
-        ============================================================
-        ACCOUNT MANAGER
-        ============================================================
-        */
-        window.manageAccounts =
-            async function() {                GE("adminPanel")
-                    .style.display =
-                    "none";
-                GE("accountManager")
-                    .style.display =
-                    "block";
-                const cont =
-                    GE("accounts");
-                cont.innerHTML =
-                    "";
-                const data =
-                    await fetch(
-                        REF.users
-                    );
-                if (!data) {                    cont.textContent =
-                        "No accounts found.";                    return;                }
-                const accounts =
-                    Object.entries(data);
-                for (
-                    const [uid, account]
-                    of accounts
-                ) {                    if (
-                        account.username ===
-                        "admin"
-                    ) {                        continue;                    }
-                    const div =
-                        CE("div");
-                    const name =
-                        CE("span");
-                    name.textContent =
-                        account.username;
-                    const brk =
-                        CE("br");
-                    const hrk =
-                        CE("hr");
-                    const but =
-                        CE("button");
-                    but.textContent =
-                        "Delete";
-                    but.onclick =
-                        function() {                            deleteAccount(uid);                        };
-                    div.appendChild(name);                    div.appendChild(brk);                    div.appendChild(but);                    div.appendChild(hrk);
-                    cont.appendChild(div);                }            };
-        /*
-        ============================================================
-        HISTORY MANAGER
-        ============================================================
-        */
-        window.managehistory =
-            async function() {                GE("adminPanel")
-                    .style.display =
-                    "none";
-                GE("historyManager")
-                    .style.display =
-                    "block";
-                const cont =
-                    GE("history");
-                cont.innerHTML =
-                    "";
-                const data =
-                    await fetch(
-                        REF.globalChat
-                    );
-                if (!data) {                    cont.textContent =
-                        "No history Yet.";                    return;                }
-                const history =
-                    Object.entries(data);
-                for (
-                    const [msgID, msgData]
-                    of history
-                ) {                    const div =
-                        CE("div");
-                    const hrk =
-                        CE("hr");
-                    const name =
-                        CE("b");
-                    name.textContent =
-                        msgData.senderName;
-                    let dat;
-                    if (
-                        msgData.type ===
-                        "text"
-                    ) {                        dat =
-                            CE("p");                        dat.textContent =
-                            msgData.data;                    }
-                    if (
-                        msgData.type ===
-                        "image"
-                    ) {                        dat =
-                            CE("img");                        dat.src =
-                            msgData.data;                    }
-                    if (
-                        msgData.type ===
-                        "video"
-                    ) {                        dat =
-                            CE("video");                        dat.src =
-                            msgData.data;                        dat.controls =
-                            true;                    }
-                    const stamp =
-                        CE("p");
-                    const date =
-                        new Date(
-                            msgData.tstamp
-                        );
-                    stamp.textContent =
-                        date.toLocaleString();
-                    const but =
-                        CE("button");
-                    but.textContent =
-                        "Delete";
-                    but.onclick =
-                        function() {                            deleteMessage(
-                                msgID
-                            );                        };
-                    div.appendChild(name);                    if (dat) {                        div.appendChild(dat);                    }                    div.appendChild(stamp);                    div.appendChild(but);                    div.appendChild(hrk);
-                    cont.appendChild(div);                }            };
-        async function deleteAccount(
-            acc
-        ) {            await remove(
-                ref(
-                    db,
-                    REF.secure +
-                    "/" +
-                    acc
-                )
-            );
-            await remove(
-                ref(
-                    db,
-                    REF.users +
-                    "/" +
-                    acc
-                )
-            );
-            manageAccounts();        }
-        async function deleteMessage(
-            msgID
-        ) {            await remove(
-                ref(
-                    db,
-                    REF.globalChat +
-                    "/" +
-                    msgID
-                )
-            );
-            managehistory();        }
-        /*
-        ============================================================
-        SYSTEM
-        ============================================================
-        */
-        window.system =
-            async function(hash) {                if (hash === 1) {                    await update(
-                        REF.newReg,
-                        true
-                    );                }
-                if (hash === 2) {                    await update(
-                        REF.newReg,
-                        false
-                    );                }
-                if (hash === 3) {                    await update(
-                        REF.frozen,
-                        true
-                    );                }
-                if (hash === 4) {                    await update(
-                        REF.frozen,
-                        false
-                    );                }            };
-        /*
-        ============================================================
-        CREATE ROOM
-        ============================================================
-        */
-        window.createRoom =
-            async function() {                const div =
-                    CE("div");
-                div.id =
-                    "cRoom";
-                div.className =
-                    "pageStyleB";
-                const room = {                    uid:
-                        null,                    users:
-                        [],                    messages:
-                        {},                    name:
-                        null                };
-                const txt =
-                    CE("span");
-                txt.textContent =
-                    "Enter Room Name:";
-                const inp =
-                    CE("input");
-                inp.id =
-                    "rInput";
-                const but =
-                    CE("button");
-                but.textContent =
-                    "Ok";
-                div.appendChild(txt);                div.appendChild(inp);                div.appendChild(but);
-                div.style.display =
-                    "block";
-                GE("roomsPage")
-                    .appendChild(div);
-                await waitForClick(but);
-                room.name =
-                    inp.value.trim();
-                txt.textContent =
-                    "Enter Member Username (leave blank to finish):";
-                inp.value =
-                    "";
-                while (true) {                    await waitForClick(but);
-                    const memberName =
-                        inp.value
-                        .trim()
-                        .toLowerCase();
-                    if (
-                        memberName ===
-                        ""
-                    ) {                        break;                    }
-                    const users =
-                        await fetch(
-                            REF.users
-                        );
-                    let found =
-                        false;
-                    if (users) {                        for (
-                            const [uid, user]
-                            of Object.entries(users)
-                        ) {                            if (
-                                user.username ===
-                                memberName
-                            ) {                                if (
-                                    !room.users
-                                    .includes(uid)
-                                ) {                                    room.users.push(
-                                        uid
-                                    );                                }                                found =
-                                    true;                                break;                            }                        }                    }
-                    if (!found) {                        txt.textContent =
-                            "User not found. Enter Member Username:";                        inp.value =
-                            "";                        continue;                    }
-                    txt.textContent =
-                        "Enter Member Username (leave blank to finish):";                    inp.value =
-                        "";                }
-                /*
-                Add creator
-                */
-                if (
-                    !room.users.includes(
-                        currentUser.uid
-                    )
-                ) {                    room.users.push(
-                        currentUser.uid
-                    );                }
-                const roomRef =
-                    push(
-                        ref(
-                            db,
-                            REF.rooms
-                        )
-                    );
-                room.uid =
-                    roomRef.key;
-                await set(
-                    roomRef,
-                    room
-                );
-                div.remove();            };
-        /*
-        ============================================================
-        OPEN ROOM
-        ============================================================
-        */
-        async function openRoom(
-            roomHash
-        ) {            GE("roomsPage")
-                .style.display =
-                "none";
-            GE("chatPage")
-                .style.display =
-                "block";
-            if (stopMessageListener) {                stopMessageListener();                stopMessageListener =
-                    null;            }
-            currentRoom =
-                roomHash;
-            currentRoomData =
-                null;
-            /*
-            Global chat
-            */
-            if (
-                roomHash ===
-                REF.globalChat
-            ) {                GE("callButton")
-                    .disabled =
-                    true;
-            }            else {                /*
-                Private room
-                */                const room =
-                    await fetch(
-                        roomHash
-                    );
-                currentRoomData =
-                    room;
-                if (
-                    room &&
-                    room.users &&
-                    room.users.length >= 2
-                ) {                    GE("callButton")
-                        .disabled =
-                        false;                }                else {                    GE("callButton")
-                        .disabled =
-                        true;                }            }
-            startMessageListener(
-                ref(
-                    db,
-                    roomHash +
-                    "/messages"
-                )
-            );        }
-        /*
-        ============================================================
-        SHOW ROOMS
-        ============================================================
-        */
-        window.showRooms =
-            async function() {                GE("chatPage")
-                    .style.display =
-                    "none";
-                GE("roomsPage")
-                    .style.display =
-                    "block";
-                const rooms =
-                    await fetch(
-                        REF.rooms
-                    );
-                const cont =
-                    GE("rooms");
-                cont.innerHTML =
-                    "";
-                if (!rooms) {                    cont.textContent =
-                        "No Rooms.";                    return;                }
-                const data =
-                    Object.values(rooms);
-                for (
-                    const room
-                    of data
-                ) {                    if (
-                        !room.users ||
-                        !room.users.includes(
-                            currentUser.uid
-                        )
-                    ) {                        continue;                    }
-                    const div =
-                        CE("div");
-                    const name =
-                        CE("b");
-                    name.textContent =
-                        room.name ||
-                        "Private Chat";
-                    const last =
-                        CE("span");
-                    if (room.messages) {                        const messages =
-                            Object.values(
-                                room.messages
-                            );
-                        messages.sort(
-                            (a, b) =>
-                                a.tstamp -
-                                b.tstamp
-                        );
-                        const latest =
-                            messages[
-                                messages.length - 1
-                            ];
-                        if (latest) {                            if (
-                                latest.type ===
-                                "text"
-                            ) {                                last.textContent =
-                                    "\n" +
-                                    latest.data.slice(
-                                        0,
-                                        15
-                                    );                            }                            else {                                last.textContent =
-                                    "\n[" +
-                                    latest.type +
-                                    "]";                            }                        }                        else {                            last.textContent =
-                                "\nNo Messages.";                        }                    }                    else {                        last.textContent =
-                            "\nNo Messages.";                    }
-                    const but =
-                        CE("button");
-                    but.textContent =
-                        "Open";
-                    but.onclick =
-                        function() {                            openRoom(
-                                REF.rooms +
-                                "/" +
-                                room.uid
-                            );                        };
-                    const hrk =
-                        CE("hr");
-                    const brk =
-                        CE("br");
-                    div.appendChild(name);                    div.appendChild(last);                    div.appendChild(brk);                    div.appendChild(but);                    div.appendChild(hrk);
-                    cont.appendChild(div);                }            };
-        /*
-        ============================================================
-        ENTER KEY
-        ============================================================
-        */
-        GE("messageInput")
-            .addEventListener(
-                "keydown",
-                function(event) {                    if (
-                        event.key ===
-                        "Enter"
-                    ) {                        sendMessage();                    }                }
-            );
-        /*
-        ============================================================
-        WEBRTC CONFIGURATION
-        ============================================================
-        */
-        const rtcConfiguration = {            iceServers: [                {
-                    urls:
-                        "stun:stun.l.google.com:19302"
-                },                {
-                    urls:
-                        "stun:stun1.l.google.com:19302"
-                }            ]        };
-        /*
-        ============================================================
-        SHOW CALL PAGE
-        ============================================================
-        */
-		function showCallPage(
-			heading,
-			person,
-			buttonText
-		) {			GE("chatPage")
-				.style.display =
-				"none";
-			GE("roomsPage")
-				.style.display =
-				"none";
-			GE("callPage")
-				.style.display =
-				"block";
-			GE("callHead")
-				.textContent =
-				heading;
-			GE("callPerson")
-				.textContent =
-				person;
-			GE("callStatus")
-				.textContent =
-				"";
-			const button =
-				GE("callButtonMain");
-			button.textContent =
-				buttonText;
-			button.disabled =
-				false;		}
-		function hideCallPage() {			GE("callPage")
-				.style.display =
-				"none";
-			GE("chatPage")
-				.style.display =
-				"block";		}
-		/*
-        ============================================================
-        FIND OTHER USER
-        ============================================================
-        */
-        async function getOtherUser() {            if (
-                !currentRoomData ||
-                !currentRoomData.users
-            ) {                return null;            }
-            const otherUID =
-                currentRoomData.users.find(
-                    uid =>
-                        uid !==
-                        currentUser.uid
-                );
-            if (!otherUID) {                return null;            }
-            const userData =
-                await fetch(
-                    REF.users +
-                    "/" +
-                    otherUID
-                );
-            if (!userData) {                return null;            }
-            return {                uid:
-                    otherUID,                username:
-                    userData.username            };        }
-        /*
-        ============================================================
-        CALL USER
-        ============================================================
-        */
-        window.callUser =
-            async function() {                if (!currentUser) {                    return;                }
-                if (!currentRoomData) {                    alert(
-                        "Calling is available only in private chats."
-                    );                    return;                }
-                if (
-                    currentRoomData.users.length !==
-                    2
-                ) {                    alert(
-                        "Calling currently supports exactly 2 users per room."
-                    );                    return;                }
-                if (peerConnection) {                    return;                }
-                const otherUser =
-                    await getOtherUser();
-                if (!otherUser) {                    alert(
-                        "Could not find the other user."
-                    );                    return;                }
-                /*
-                Prevent calling someone who is
-                already in another call.
-                */
-                const existingCalls =
-                    await fetch(
-                        REF.calls
-                    );
-                if (existingCalls) {                    for (
-                        const call
-                        of Object.values(
-                            existingCalls
-                        )
-                    ) {                        if (
-                            call.status ===
-                            "active"
-                            ||
-                            call.status ===
-                            "ringing"
-                        ) {                            if (
-                                call.caller ===
-                                otherUser.uid
-                                ||
-                                call.receiver ===
-                                otherUser.uid
-                            ) {                                alert(
-                                    "That user is already on a call."
-                                );                                return;                            }                        }                    }                }
-                callingBySelf =
-                    true;
-                showCallPage(
-                    "Outgoing Call",
-                    otherUser.username,
-                    "End"
-                );
-                GE("callStatus")
-                    .textContent =
-                    "Calling...";
-                const callRef =
-                    push(
-                        ref(
-                            db,
-                            REF.calls
-                        )
-                    );
-                currentCallId =
-                    callRef.key;
-                currentCallData = {                    caller:
-                        currentUser.uid,                    callerName:
-                        currentUsername,                    receiver:
-                        otherUser.uid,                    receiverName:
-                        otherUser.username,                    room:
-                        currentRoom,                    status:
-                        "ringing",                    createdAt:
-                        Date.now()                };
-                await set(
-                    callRef,
-                    currentCallData
-                );
-                /*
-                Create WebRTC connection
-                */
-                await createPeerConnection();
-                /*
-                Create offer
-                */
-                const offer =
-                    await peerConnection.createOffer();
-                await peerConnection.setLocalDescription(
-                    offer
-                );
-                await set(
-                    ref(
-                        db,
-                        REF.calls +
-                        "/" +
-                        currentCallId +
-                        "/offer"
-                    ),
-                    {                        type:
-                            offer.type,                        sdp:
-                            offer.sdp                    }
-                );
-                /*
-                Listen for answer
-                */
-                stopCallListener =
-                    onValue(
-                        ref(
-                            db,
-                            REF.calls +
-                            "/" +
-                            currentCallId
-                        ),                        async function(snapshot) {                            const data =
-                                snapshot.val();
-                            if (!data) {                                return;                            }
-                            /*
-                            Rejected
-                            */                            if (
-                                data.status ===
-                                "rejected"
-                            ) {                                GE("callStatus")
-                                    .textContent =
-                                    "Call rejected.";                                await cleanupCall(
-                                    false
-                                );                                return;                            }
-                            /*
-                            Ended by other side
-                            */                            if (
-                                data.status ===
-                                "ended"
-                            ) {                                GE("callStatus")
-                                    .textContent =
-                                    "Call ended.";                                await cleanupCall(
-                                    false
-                                );                                return;                            }
-                            /*
-                            Answer received
-                            */
-                            if (
-                                data.answer &&
-                                peerConnection
-                                    .currentRemoteDescription
-                                    === null
-                            ) {                                try {                                    await peerConnection
-                                        .setRemoteDescription(
-                                            new RTCSessionDescription(
-                                                data.answer
-                                            )
-                                        );
-                                    GE("callStatus")
-                                        .textContent =
-                                        "Connected";                                }
-                                catch (err) {                                    console.error(
-                                        err
-                                    );                                }                            }                        }
-                    );
-                /*
-                Listen for receiver ICE
-                */
-                stopCallerCandidateListener =
-                    onValue(
-                        ref(
-                            db,
-                            REF.calls +
-                            "/" +
-                            currentCallId +
-                            "/receiverCandidates"
-                        ),                        async function(snapshot) {                            const data =
-                                snapshot.val();
-                            if (!data) {                                return;                            }
-                            for (
-                                const candidate
-                                of Object.values(data)
-                            ) {                                try {                                    await peerConnection
-                                        .addIceCandidate(
-                                            new RTCIceCandidate(
-                                                candidate
-                                            )
-                                        );                                }
-                                catch (err) {                                    console.error(
-                                        "ICE error:",
-                                        err
-                                    );                                }                            }                        }
-                    );
-                /*
-                End button
-                */
-                GE("callButtonMain")
-                    .onclick =
-                    function() {                        endCall();                    };            };
-        /*
-        ============================================================
-        CREATE PEER CONNECTION
-        ============================================================
-        */
-        async function createPeerConnection() {            peerConnection =
-                new RTCPeerConnection(
-                    rtcConfiguration
-                );
-            /*
-            Get microphone
-            */
-            localStream =
-                await navigator.mediaDevices
-                    .getUserMedia({                        audio: true,                        video: false                    });
-            /*
-            Add microphone track
-            */
-            for (
-                const track
-                of localStream.getTracks()
-            ) {                peerConnection.addTrack(
-                    track,
-                    localStream
-                );            }
-            /*
-            Incoming audio
-            */
-            peerConnection.ontrack =
-                function(event) {                    const audio =
-                        GE("remoteAudio");
-                    audio.srcObject =
-                        event.streams[0];
-                    audio.play()
-                        .catch(
-                            err =>
-                                console.log(
-                                    "Audio autoplay:",
-                                    err
-                                )
-                        );                };
-            /*
-            ICE candidate
-            */
-            peerConnection.onicecandidate =
-                async function(event) {                    if (
-                        !event.candidate ||
-                        !currentCallId
-                    ) {                        return;                    }
-                    const candidateRef =
-                        push(
-                            ref(
-                                db,
-                                REF.calls +
-                                "/" +
-                                currentCallId +
-                                "/" +
-                                (
-                                    callingBySelf
-                                    ?
-                                    "callerCandidates"
-                                    :
-                                    "receiverCandidates"
-                                )
-                            )
-                        );
-                    await set(
-                        candidateRef,
-                        event.candidate.toJSON()
-                    );                };
-            /*
-            Connection state
-            */
-            peerConnection.onconnectionstatechange =
-                function() {                    if (!peerConnection) {                        return;                    }
-                    const state =
-                        peerConnection
-                            .connectionState;
-                    console.log(
-                        "WebRTC state:",
-                        state
-                    );
-                    if (
-                        state ===
-                        "connected"
-                    ) {                        GE("callStatus")
-                            .textContent =
-                            "Connected";
-                        GE("muteButton")
-                            .style.display =
-                            "inline-block";                    }
-                    if (
-                        state ===
-                        "disconnected"
-                    ) {                        GE("callStatus")
-                            .textContent =
-                            "Connection interrupted.";                    }
-                    if (
-                        state ===
-                        "failed"
-                    ) {                        GE("callStatus")
-                            .textContent =
-                            "Connection failed.";                    }
-                    if (
-                        state ===
-                        "closed"
-                    ) {                        endCall();                    }                };        }
-        /*
-        ============================================================
-        INCOMING CALL LISTENER
-        ============================================================
-        */
-        function startIncomingCallListener() {            stopIncomingCallListener();
-            if (!currentUser) {                return;            }
-            stopCallListener =
-                onValue(
-                    ref(
-                        db,
-                        REF.calls
-                    ),                    async function(snapshot) {                        const calls =
-                            snapshot.val();
-                        if (!calls) {                            return;                        }
-                        /*
-                        Find calls intended for us
-                        */
-                        for (
-                            const [
-                                callId,
-                                call
-                            ]
-                            of Object.entries(calls)
-                        ) {                            if (
-                                call.receiver !==
-                                currentUser.uid
-                            ) {                                continue;                            }
-                            if (
-                                call.status !==
-                                "ringing"
-                            ) {                                continue;                            }
-                            /*
-                            Don't show another
-                            incoming call while
-                            already in one.
-                            */
-                            if (
-                                currentCallId
-                            ) {                                continue;                            }
-                            currentCallId =
-                                callId;
-                            currentCallData =
-                                call;
-                            callingBySelf =
-                                false;
-                           showCallPage(
-								"Incoming Call",
-								call.callerName,
-								"Accept"
-							);							GE("callStatus")
-								.textContent =
-								"Incoming call...";							const rejectButton =
-								createRejectButton();							rejectButton.style.display =
-								"inline-block";							GE("callButtonMain")
-								.onclick =
-								function() {									acceptCall();								};
-                            /*
-                            Break so we don't process
-                            multiple calls.
-                            */
-                            break;                        }                    }
-                );        }
-        function stopIncomingCallListener() {            if (stopCallListener) {                stopCallListener();                stopCallListener =
-                    null;            }        }
-        /*
-        ============================================================
-        ACCEPT CALL
-        ============================================================
-        */
-        async function acceptCall() {            if (
-                !currentCallId ||
-                !currentCallData
-            ) {                return;            }
-            try {                GE("callButtonMain")
-                    .disabled =
-                    true;
-                GE("callStatus")
-                    .textContent =
-                    "Connecting...";
-                /*
-                Create WebRTC
-                */
-                await createPeerConnection();
-                /*
-                Read offer
-                */
-                const call =
-                    await fetch(
-                        REF.calls +
-                        "/" +
-                        currentCallId
-                    );
-                if (
-                    !call ||
-                    !call.offer
-                ) {                    throw new Error(
-                        "Call offer not found."
-                    );                }
-                await peerConnection
-                    .setRemoteDescription(
-                        new RTCSessionDescription(
-                            call.offer
-                        )
-                    );
-                /*
-                Create answer
-                */
-                const answer =
-                    await peerConnection
-                        .createAnswer();
-                await peerConnection
-                    .setLocalDescription(
-                        answer
-                    );
-                /*
-                Save answer
-                */
-                await update(
-                    REF.calls +
-                    "/" +
-                    currentCallId +
-                    "/answer",                    {                        type:
-                            answer.type,                        sdp:
-                            answer.sdp                    }
-                );
-                await update(
-                    REF.calls +
-                    "/" +
-                    currentCallId +
-                    "/status",                    "active"
-                );
-                /*
-                Listen for caller ICE
-                */
-                stopReceiverCandidateListener =
-                    onValue(
-                        ref(
-                            db,
-                            REF.calls +
-                            "/" +
-                            currentCallId +
-                            "/callerCandidates"
-                        ),                        async function(snapshot) {                            const data =
-                                snapshot.val();
-                            if (!data) {                                return;                            }
-                            for (
-                                const candidate
-                                of Object.values(data)
-                            ) {                                try {                                    await peerConnection
-                                        .addIceCandidate(
-                                            new RTCIceCandidate(
-                                                candidate
-                                            )
-                                        );                                }
-                                catch (err) {                                    console.error(
-                                        "ICE error:",
-                                        err
-                                    );                                }                            }                        }
-                    );
-                GE("callHead")
-                    .textContent =
-                    "In Call";
-                GE("callButtonMain")
-                    .disabled =
-                    false;
-                GE("callButtonMain")
-                    .textContent =
-                    "End";
-                GE("callButtonMain")
-                    .onclick =
-                    function() {                        endCall();                    };
-            }
-            catch (err) {                console.error(
-                    "Accept call error:",
-                    err
-                );
-                GE("callStatus")
-                    .textContent =
-                    "Could not connect: " +
-                    err.message;
-                await endCall();            }        }
-        /*
-        ============================================================
-        REJECT CALL
-        ============================================================
-        */
-        async function rejectCall() {            if (!currentCallId) {                return;            }
-            await update(
-                REF.calls +
-                "/" +
-                currentCallId +
-                "/status",                "rejected"
-            );
-            await cleanupCall(
-                true
-            );        }
-        /*
-        ============================================================
-        END CALL
-        ============================================================
-        */
-        window.endCall =
-            async function(silent = false) {                if (!currentCallId) {                    if (!silent) {                        hideCallPage();                    }                    return;                }
-                try {                    /*
-                    Tell other side
-                    */
-                    if (
-                        currentCallData
-                    ) {                        await update(
-                            REF.calls +
-                            "/" +
-                            currentCallId +
-                            "/status",                            "ended"
-                        );                    }                }
-                catch (err) {                    console.error(
-                        "End call Firebase error:",
-                        err
-                    );                }
-                await cleanupCall(
-                    !silent
-                );            };
-        /*
-        ============================================================
-        CLEANUP CALL
-        ============================================================
-        */
-        async function cleanupCall(
-            returnToChat = true
-			const rejectButton =
-				GE("rejectCallButton");			if (rejectButton) {
-				rejectButton.style.display = "none";
-			}
-        ) {            /*
-            Stop Firebase listeners
-            */
-            if (
-                stopCallerCandidateListener
-            ) {                stopCallerCandidateListener();                stopCallerCandidateListener =
-                    null;            }
-            if (
-                stopReceiverCandidateListener
-            ) {                stopReceiverCandidateListener();                stopReceiverCandidateListener =
-                    null;            }
-            /*
-            Close WebRTC
-            */
-            if (peerConnection) {                peerConnection.close();                peerConnection =
-                    null;            }
-            /*
-            Stop microphone
-            */
-            if (localStream) {                for (
-                    const track
-                    of localStream.getTracks()
-                ) {                    track.stop();                }
-                localStream =
-                    null;            }
-            /*
-            Stop remote audio
-            */
-            GE("remoteAudio")
-                .srcObject =
-                null;
-            /*
-            Reset variables
-            */
-            currentCallId =
-                null;
-            currentCallData =
-                null;
-            callingBySelf =
-                false;
-            isMuted =
-                false;
-            GE("muteButton")
-                .style.display =
-                "none";
-            GE("muteButton")
-                .textContent =
-                "Mute";
-            if (returnToChat) {                hideCallPage();            }        }
-        /*
-        ============================================================
-        MUTE / UNMUTE
-        ============================================================
-        */
-        window.toggleMute =
-            function() {                if (!localStream) {                    return;                }
-                const tracks =
-                    localStream.getAudioTracks();
-                if (!tracks.length) {                    return;                }
-                isMuted =
-                    !isMuted;
-                for (
-                    const track
-                    of tracks
-                ) {                    track.enabled =
-                        !isMuted;                }
-                GE("muteButton")
-                    .textContent =
-                    isMuted
-                    ?
-                    "Unmute"
-                    :
-                    "Mute";            };
-        /*
-        ============================================================
-        INCOMING CALL:
-        REJECT BUTTON SUPPORT
-        ============================================================
-        */
-        /*
-        The incoming call initially has
-        Accept as the main button.        Add a second Reject button dynamically.
-        */
-        function createRejectButton() {            let button =
-                GE("rejectCallButton");
-            if (button) {                return button;            }
-            button =
-                CE("button");
-            button.id =
-                "rejectCallButton";
-            button.textContent =
-                "Reject";
-            button.onclick =
-                function() {                    rejectCall();                };
-            GE("callPage")
-                .insertBefore(
-                    button,
-                    GE("muteButton")
-                );
-            return button;        }
-        /*
-        ============================================================
-        MODIFY INCOMING CALL DISPLAY
-        ============================================================
-        */
-        const originalShowCallPage =
-            showCallPage;
-        /*
-        We use MutationObserver-style logic
-        through the call page state instead.
-        */
-        /*
-        ============================================================
-        INITIAL CALL BUTTON STATE
-        ============================================================
-        */
-        GE("callButton")
-            .disabled =
-            true;
-    </script></body>
-</html>
