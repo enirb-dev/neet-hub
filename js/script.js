@@ -519,12 +519,6 @@ async function chatPageUpdate() {
 			if (users && users[otherUser]) {
 				seenOther = users[otherUser].lastSeen || 0;
 			}
-			// for (const user of Object.entries(tUsers)) {
-				// if (user.uid == otherUser) {
-					// seenOther = user.lastSeen;
-					// break;
-				// }
-			// }
 			
 			if (Date.now() - seenOther <= 3000) {
 				GE("onlineHasher").textContent = "Online";
