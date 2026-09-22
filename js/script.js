@@ -318,7 +318,7 @@ emergencyBubble.addEventListener("pointerup", function(event) {
 	emergencyBubble.releasePointerCapture(event.pointerId);
 	
 	if (!moved) {
-		emergency(force=true);
+		emergency(true);
 	}
 });
 
