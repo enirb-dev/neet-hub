@@ -318,7 +318,7 @@ emergencyBubble.addEventListener("pointerup", function(event) {
 	emergencyBubble.releasePointerCapture(event.pointerId);
 	
 	if (!moved) {
-		emergency();
+		emergency(force=true);
 	}
 });
 
@@ -342,8 +342,8 @@ window.clearhistory = async function() {
 	Log("History Cleared.");
 };
 
-window.emergency = function() {
-	if (emergencyTriggered || DEVMODE || !emergencyEnabled) { return; }
+window.emergency = function(force=false) {
+	if ((emergencyTriggered || DEVMODE || !emergencyEnabled) && !force) { return; }
 	
 	emergencyTriggered = true;
 	if (stopMessageListener) {
