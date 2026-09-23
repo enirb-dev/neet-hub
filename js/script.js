@@ -776,7 +776,8 @@ function updateReplyUI() {
 	label.textContent = "Replying to: ";
 	
 	const text = CE("b");
-	text.textContent = CACHE.replying[1];
+	let _ = (CACHE.replying[1].length > 20) ? "... " : " ";
+	text.textContent = CACHE.replying[1].slice(0,20) + _;
 	
 	const cancel = CE("button");
 	cancel.textContent = "Cancel";
@@ -1661,7 +1662,8 @@ window.showRooms = async function() {
 		
 		if (room.lastMessageMeta) {
 			if (room.lastMessageMeta.data) {
-				last.textContent = "\n" + room.lastMessageMeta.data.slice(0, 45);
+				let _ = (room.lastMessageMeta.data.length > 30) ? "... " : " ";
+				last.textContent = "\n" + room.lastMessageMeta.data.slice(0, 30) + _;
 			} else {
 				last.textContent = "n\No Messages.";
 			}
