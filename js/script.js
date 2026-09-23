@@ -622,6 +622,7 @@ window.sendMessage = async function() {
 	}
 	
 	const input = GE("messageInput");
+	const fileInput = GE("messageFile");
 	
 	let text = input.value.trim();
 	input.value = "";
@@ -643,19 +644,41 @@ window.sendMessage = async function() {
 	text = tmp[1];
 	if (tmp[0] == 1) { _time = null; }
 	
-	if (!text) {
-		return;
+	let type; let data; let meta;
+	const file = fileInput.files[0];
+	
+	if (file) {
+		try {
+			const uploadResult = await uploadToDrive(file);
+			
+			type = "image";
+			data = uploadResult.directUrl;
+			meta = [uploadResult.fileId];
+			
+			console.log("File Sent.")
+			fileInput.value = "";
+		} catch (err) {
+			console.error("Error Occured: ", err);
+			return;
+		}
+	} else if (text) {
+		type = "text";
+		data = text;
+		meta = null;
+	} else {
+		return null;
 	}
 	
 	const message = {
 		sender: currentUser.uid,
 		senderName: currentUsername,
-		type: "text",
-		data: text,
+		type: type,
+		data: data,
 		tstamp: Date.now(),
 		time: _time,
 		seenBy: [currentUser.uid],
 		replyingTo: CACHE.replying,
+		meta: meta
 	};
 	
 	const messageRef = push(
@@ -669,7 +692,7 @@ window.sendMessage = async function() {
 	
 	const lastMeta = {
 		senderName: currentUsername,
-		data: text,
+		data: type == "text" ? text : "📷 Image",
 		tstamp: Date.now()
 	}
 	
@@ -941,6 +964,57 @@ async function startMessageListener(messageRef) {
 					} else if (message.type == "image") {
 						dat = CE("img");
 						dat.src = message.data;
+						
+						dat.style = "pointer";
+						
+						dat.onclick = (event) => {
+							event.stopPropagation();
+							
+							const overlay = CE("div");
+							let os = overlay.style;
+							os.position = "fixed";
+							os.inset = "0";
+							os.background = "rgba(0,0,0,0.85)";
+							os.display = "flex";
+							os.alignItems = "center";
+							os.justifyContent = "center";
+							os.zindex = "9999";
+							os.cursor = "zoom-out";
+							
+							const bigImg = CE("img");
+							bigImg.src = message.data;
+							let bs = bigImg.style;
+							bs.maxWidth = "95vw";
+							bs.maxHeight = "95vw";
+							bs.objectFit = "contain";
+							bs.borderRadius = "8px";
+							
+							overlay.appendChild(bigImg);
+							document.body.appendChild(overlay);
+							
+							overlay.onclick = () => {
+								overlay.remove();
+							}
+							
+						}
+						
+						dat.style.maxWidth = "380px";
+						dat.style.maxHeight = "550px";
+						dat.style.width = "auto";
+						dat.style.height = "auto";
+						
+						dat.style.display = "block";
+						dat.style.borderRadius = "8px";
+						dat.style.objectFit = "contain";
+						
+						dat.onload = () => {
+							console.log("Image Loaded: ", dat.naturalWidth, dat.naturalHeight);
+						}
+						
+						dat.onerror = () => {
+							console.log("Image Failed: ", dat.src);
+						}
+						
 					} else if (message.type == "video") {
 						dat = CE("video");
 						dat.src = message.data;
@@ -1121,6 +1195,46 @@ window.toggleNotifications = async function() {
 	notificationsEnabled = true;
 	GE("notificationToggle").textContent = "Notifications: Enabled";
 
+}
+
+const UPLOADER = "https://script.google.com/macros/s/AKfycbwEaH1XJ4hNvsjTmdPwNYJXkG6Z7cGGUixnDMGHup1mLpI2u6l_Fy8bJ6uD84DPBij3oQ/exec";
+
+async function uploadToDrive(file) {
+	return new Promise((resolve, reject) => {
+		const reader = new FileReader();
+		
+		reader.onload = async() => {
+			const base64Data = reader.result.split(',')[1];
+			const payload = {
+				fileName: file.name,
+				mimeType: file.type,
+				base64Data: base64Data
+			}
+			
+			try {
+				const response = await window.fetch(UPLOADER, {
+					method: "POST",
+					body: JSON.stringify(payload),
+					headers: {
+						"Content-Type": "text/plain;charset=utf-8"
+					}
+				});
+				
+				const result = await response.json();
+				
+				if (result.status == "success") {
+					resolve(result);
+				} else {
+					reject(new Error(result.message));
+				}
+			} catch (err) {
+				reject(err);
+			}
+		};
+		
+		reader.onerror = (err) => reject(err);
+		reader.readAsDataURL(file);
+	});
 }
 
 window.logout = async function() {
@@ -1324,6 +1438,7 @@ window.showLastSeens = async function() {
 	
 	Log("Account Manager Opened.");
 };
+
 window.managehistory = async function() {
 	GE("adminPanel").style.display = "none";
 	GE("historyManager").style.display = "block";
