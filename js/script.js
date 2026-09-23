@@ -45,6 +45,7 @@ await signOut(auth);
 
 class RawAdminSDK {}
 let AdminSDK = null;
+
 function triggerUnauthorizedAdminCallAlert(propName, args) {
 	Log(`Unauthorized Admin Call Observed!!! Attempted "${String(propName)}" with "${String(args)}"`);
 	signOut(auth);
@@ -226,6 +227,44 @@ async function ask(query, type) {
 	return result;
 }
 
+function createMenu(x, y, options) {	// options = list of (text, action)
+	const menu = CE("div");
+	
+	menu.style.position = "absolute";
+	menu.style.left = `${x}px`;
+	menu.style.top = `${y}px`;
+	menu.style.zindex = "1000";
+	
+	for (const [txt, action] of options) {
+		const but = CE("button");
+		but.textContent = txt;
+		but.onclick = function(event) {
+			event.stopPropagation();
+			closeMenu();
+			
+			action();
+		};
+		
+		menu.appendChild(but);
+	}
+	
+	document.body.appendChild(menu);
+	
+	function closeMenu() {
+		if (menu.parentNode) {
+			menu.remove();
+		}
+		
+		window.removeEventListener("click", closeMenu);
+		window.removeEventListener("contextmenu", closeMenu);
+	}
+	
+	window.addEventListener("click", closeMenu);
+	window.addEventListener("contextmenu", closeMenu);
+	
+	return menu;
+}
+
 
 async function dialog(msg, immediateHide=false) {
 	const queryPage = GE("queryPage");
@@ -271,6 +310,9 @@ const emergencyBubble = GE("emergencyBubble");
 let emergencyEnabled = true;
 let notificationsEnabled = false;
 let notifiedCache = [];
+
+let CACHE = {};
+CACHE.replying = null;
 
 let focussed = true;
 
@@ -590,7 +632,8 @@ window.sendMessage = async function() {
 		data: text,
 		tstamp: Date.now(),
 		time: _time,
-		seenBy: [currentUser.uid]
+		seenBy: [currentUser.uid],
+		replyingTo: CACHE.replying,
 	};
 	
 	const messageRef = push(
@@ -598,6 +641,9 @@ window.sendMessage = async function() {
 	);
 	
 	await set(messageRef, message);
+	
+	CACHE.replying = null;
+	updateReplyUI();
 	
 	const lastMeta = {
 		senderName: currentUsername,
@@ -662,6 +708,66 @@ async function chatPageUpdate() {
 
 setInterval(chatPageUpdate, 500);
 
+function setupMessageMenu(div, messageId, message) {
+	div.addEventListener("contextmenu", function(event) {
+		event.preventDefault();
+		event.stopPropagation();
+		
+		createMenu(
+			event.clientX,
+			event.clientY,
+			[
+				[
+					"Reply",
+					function() {
+						CACHE.replying = [
+							messageId,
+							message.data
+						];
+						
+						updateReplyUI();
+					}
+				]
+			]
+		);
+	});
+}
+
+function updateReplyUI() {
+	const existing = GE("replyingBar");
+	
+	if (!existing) {
+		return;
+	}
+	
+	if (!CACHE.replying) {
+		existing.style.display = "none";
+		existing.textContent = "";
+		return;
+	}
+	
+	existing.style.display = "block";
+	existing.textContent = "";
+	
+	const label = CE("span");
+	label.textContent = "Replying to: ";
+	
+	const text = CE("b");
+	text.textContent = CACHE.replying[1];
+	
+	const cancel = CE("button");
+	cancel.textContent = "Cancel";
+	cancel.onclick = function(event) {
+		event.stopPropagation();
+		CACHE.replying = null;
+		updateReplyUI();
+	};
+	
+	existing.appendChild(label);
+	existing.appendChild(text);
+	existing.appendChild(cancel);
+}
+
 let blockLoad = false;
 
 async function startMessageListener(messageRef) {
@@ -696,7 +802,7 @@ async function startMessageListener(messageRef) {
 					div.style.position = "relative";
 					div.style.padding = "6px 45px 12px 10px"
 					div.style.marginTop = isSameUser ? "1px" : "5px";
-					div.style.marginBottom = isSameUser ? "1px" : "1px";
+					div.style.marginBottom = "1px";
 					
 					if (!Array.isArray(message.seenBy)) {
 						message.seenBy = [message.sender];
@@ -726,6 +832,11 @@ async function startMessageListener(messageRef) {
 						}
 					} else {
 						tmp = false;
+					}
+					
+					const replyingTo = CE("b");
+					if (message.replyingTo) {
+						replyingTo.textContent = message.replyingTo[1];
 					}
 					
 					const name = CE("b");
@@ -758,6 +869,46 @@ async function startMessageListener(messageRef) {
 					time.style.whiteSpace = "nowrap";
 					time.style.color = "#888";
 					
+					if (message.replyingTo) {
+						const replyBox = CE("div");
+						
+						replyBox.style.padding = "3px 6px";
+						replyBox.style.marginBottom = "4px";
+						replyBox.style.borderLeft = "3px solid #888";
+						replyBox.style.fontSize = "12px";
+						replyBox.style.opacity = "0.75";
+						replyBox.style.overflow = "hidden";
+						replyBox.style.textOverflow = "ellipsis";
+						replyBox.style.whiteSpace = "nowrap";
+						replyBox.style.background = "#ddd";
+						
+						const replyLabel = CE("b");
+						replyLabel.textContent = "↩ ";
+						
+						const replyText = CE("span");
+						replyText.textContent = message.replyingTo[1];
+						
+						replyBox.appendChild(replyLabel);
+						replyBox.appendChild(replyText);
+						
+						replyBox.onclick = function(event) {
+							event.stopPropagation();
+							
+							const targetId = message.replyingTo[0];
+							
+							const target = GE("messages").querySelector(`[data-message-id="${targetId}"]`);
+							
+							if (target) {
+								target.scrollIntoView({
+									behavior: "smooth",
+									block: "center"
+								});
+							}
+						};
+						
+						div.appendChild(replyBox);
+					}
+					
 					let dat;
 					if (message.type == "text") {
 						dat = CE("span");
@@ -773,17 +924,28 @@ async function startMessageListener(messageRef) {
 						continue;
 					}
 					
-					if (lastUser != message.senderName) { div.appendChild(name); }
-					div.appendChild(time);
+					div.dataset.messageId = messageId;
+					
+					setupMessageMenu(div, messageId, message);
+					
+					if (lastUser != message.senderName) {
+						div.appendChild(name);
+						const brkName = CE("br");
+						div.appendChild(brkName);
+					}
+					
 					div.appendChild(dat);
-					div.appendChild(brk2);
+					div.appendChild(time);
 					
 					div.style.overflow = 'hidden';
+					
 					lastUser = message.senderName;
 					cont.appendChild(div);
 				}
 				
 				cont.scrollTop = cont.scrollHeight;
+				updateReplyUI();
+				
 			}
 		);
 }
@@ -1364,6 +1526,9 @@ async function openRoom(roomHash) {
 	currentRoom = roomHash;
 	currentRoomData = null;
 	
+	CACHE.replying = null;
+	updateReplyUI();
+	
 	if (roomHash === REF.globalChat) {
 		GE("callButton").disabled = true;
 	} else {
@@ -1411,6 +1576,9 @@ async function openRoom(roomHash) {
 window.showRooms = async function() {
 	GE("chatPage").style.display = "none";
 	GE("roomsPage").style.display = "block";
+	
+	CACHE.replying = null;
+	updateReplyUI();
 	
 	currentRoomData = null;
 	
