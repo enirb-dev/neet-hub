@@ -45,7 +45,6 @@ await signOut(auth);
 
 class RawAdminSDK {}
 let AdminSDK = null;
-
 function triggerUnauthorizedAdminCallAlert(propName, args) {
 	Log(`Unauthorized Admin Call Observed!!! Attempted "${String(propName)}" with "${String(args)}"`);
 	signOut(auth);
