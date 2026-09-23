@@ -746,6 +746,7 @@ function setupMessageMenu(div, messageId, message) {
 							message.data
 						];
 						
+						GE("messageInput").focus();
 						updateReplyUI();
 					}
 				]
