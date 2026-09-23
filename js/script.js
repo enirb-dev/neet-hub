@@ -228,9 +228,15 @@ async function ask(query, type) {
 }
 
 function createMenu(x, y, options) {	// options = list of (text, action)
-	const menu = CE("div");
+	if (currentMenu) {
+		currentMenu.remove();
+		currentMenu = null;
+	}
 	
-	menu.style.position = "absolute";
+	const menu = CE("div");
+	currentMenu = menu;
+	
+	menu.style.position = "fixed";
 	menu.style.left = `${x}px`;
 	menu.style.top = `${y}px`;
 	menu.style.zindex = "1000";
@@ -251,8 +257,16 @@ function createMenu(x, y, options) {	// options = list of (text, action)
 	document.body.appendChild(menu);
 	
 	function closeMenu() {
+		/*
 		if (menu.parentNode) {
 			menu.remove();
+		}
+		*/
+		
+		menu.remove();
+		
+		if (currentMenu == menu) {
+			currentMenu = null;
 		}
 		
 		window.removeEventListener("click", closeMenu);
@@ -265,6 +279,12 @@ function createMenu(x, y, options) {	// options = list of (text, action)
 	return menu;
 }
 
+window.addEventListener("scroll", () => {
+	if (currentMenu) {
+		currentMenu.remove();
+		currentMenu = null;
+	}
+}, true);
 
 async function dialog(msg, immediateHide=false) {
 	const queryPage = GE("queryPage");
@@ -313,6 +333,7 @@ let notifiedCache = [];
 
 let CACHE = {};
 CACHE.replying = null;
+let currentMenu = null;
 
 let focussed = true;
 
