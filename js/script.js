@@ -244,6 +244,7 @@ function createMenu(x, y, options) {	// options = list of (text, action)
 	for (const [txt, action] of options) {
 		const but = CE("button");
 		but.textContent = txt;
+		but.className = "B";
 		but.onclick = function(event) {
 			event.stopPropagation();
 			closeMenu();
@@ -779,6 +780,7 @@ function updateReplyUI() {
 	
 	const cancel = CE("button");
 	cancel.textContent = "Cancel";
+	cancel.className = "B";
 	cancel.onclick = function(event) {
 		event.stopPropagation();
 		CACHE.replying = null;
