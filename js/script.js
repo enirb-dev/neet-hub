@@ -280,6 +280,126 @@ function createMenu(x, y, options) {	// options = list of (text, action)
 	return menu;
 }
 
+async function initMediaDB() {
+	return new Promise((resolve, reject) => {
+		const request = indexedDB.open("NeetHubDB", 1);
+		
+		request.onupgradeneeded = (event) => {
+			const db = event.target.result;
+			
+			if (!db.objectStoreNames.contains("images")) {
+				db.createObjectStore("images", {keyPath: "id"});
+			}
+		};
+		
+		request.onsuccess = (event) => {
+			MDB = event.target.result;
+			resolve(MDB);
+		};
+		
+		request.onerror = (event) => {
+			reject(event.target.error);
+		};
+	});
+}
+
+function saveFile(id, blob, type="images") {
+	return new Promise((resolve, reject) => {
+		const trans = MDB.transaction(type, "readwrite");
+		const store = trans.objectStore(type);
+		
+		const req = store.put({
+			id: id,
+			blob: blob,
+			tstamp: Date.now()
+		});
+		
+		req.onsuccess = () => resolve();
+		req.onerror = () => reject(req.error);
+	});
+}
+
+function getFile(id, type="images") {
+	return new Promise((resolve, reject) => {
+		const trans = MDB.transaction(type, "readonly");
+		const store = trans.objectStore(type);
+		
+		const req = store.get(id);
+		
+		req.onsuccess = () => resolve(req.result || null);
+		req.onerror = () => reject(req.error);
+	});
+}
+
+function deleteFile(id, type="images") {
+	return new Promise((resolve, reject) => {
+		const trans = MDB.transaction(type, "readwrite");
+		const store = trans.objectStore(type);
+		
+		const req = store.delete(id);
+		
+		req.onsuccess = () => resolve();
+		req.onerror = () => reject(req.error);
+	});
+}
+
+function clearFiles(type="images") {
+	return new Promise((resolve, reject) => {
+		const trans = MDB.transaction(type, "readwrite");
+		const store = trans.objectStore(type);
+		
+		const req = store.clear();
+		
+		req.onsuccess = () => resolve();
+		req.onerror = () => reject(req.error);
+	});
+}
+
+async function loadCachedImage(imageId) {
+	const cached = await getFile(imageId);
+	
+	if (cached) {
+		console.log("Image Loaded from Cache: ", imageId);
+		return URL.createObjectURL(cached.blob);
+	}
+	
+	console.log("Image not Cached. Downlaoding: ", imageId);
+	
+	const downloadUrl = `${UPLOADER}?fileId=${encodeURIComponent(imageId)}`;
+	const response = await window.fetch(downloadUrl);
+	
+	if (!response.ok) {
+		throw new Error("Image Download Failed: HTTP ", response.status, " Message: ", response.message || "NaN");
+	}
+	
+	const raw = await response.text();
+	console.log("Script Response: ", raw);
+	
+	const result = JSON.parse(raw);
+	
+	console.log("Result Data: ", result.base64Data?.length, result.mimeType);
+	
+	//const result = response.json();
+	
+	const binary = atob(result.base64Data);
+	const bytes = new Uint8Array(binary.length);
+	
+	for (let i=0; i< binary.length; i++) {
+		bytes[i] = binary.charCodeAt(i);
+	}
+	
+	const blob = new Blob(
+		[bytes],
+		{ type: result.mimeType }
+	);
+	
+	// const blob = await response.blob();
+	await saveFile(imageId, blob);
+	
+	console.log("Image downloaded and cached: ", imageId);
+	return URL.createObjectURL(blob);
+}
+
 window.addEventListener("scroll", () => {
 	if (currentMenu) {
 		currentMenu.remove();
@@ -335,6 +455,7 @@ let notifiedCache = [];
 let CACHE = {};
 CACHE.replying = null;
 let currentMenu = null;
+let MDB = null;
 
 let focussed = true;
 
@@ -569,6 +690,11 @@ onAuthStateChanged(
 			
 			if (data) {
 				currentUsername = data.username;
+				if (currentUsername.includes("test")) {
+					if (emergencyEnabled) {
+						toggleEmergencyActivity();
+					}
+				}
 			}
 		
 		
@@ -616,7 +742,7 @@ onAuthStateChanged(
 // ----------------------------------------------------------------
 // ----------------------------------------------------------------
 
-window.sendMessage = async function() {
+window.sendMessage = async function(recursive=false) {
 	if (!currentUser || !currentRoom) {
 		return;
 	}
@@ -645,18 +771,30 @@ window.sendMessage = async function() {
 	if (tmp[0] == 1) { _time = null; }
 	
 	let type; let data; let meta;
-	const file = fileInput.files[0];
+	
+	const files = fileInput.files;
+	
+	if (files.length == 0 && recursive) return;
+	const file = files[0];
+	
+	let remFile = null;
 	
 	if (file) {
 		try {
 			const uploadResult = await uploadToDrive(file);
 			
 			type = "image";
-			data = uploadResult.directUrl;
+			data = `https://lh3.googleusercontent.com/d/${uploadResult.fileId}=w2000`;
 			meta = [uploadResult.fileId];
 			
 			console.log("File Sent.")
+			
+			remFile = Array.from(fileInput.files).slice(1);
 			fileInput.value = "";
+			
+			if (remFile.length <= 0) {
+				remFile = null;
+			}
 		} catch (err) {
 			console.error("Error Occured: ", err);
 			return;
@@ -686,6 +824,16 @@ window.sendMessage = async function() {
 	);
 	
 	await set(messageRef, message);
+	
+	if (remFile) {
+		const dt = new DataTransfer();
+		for (const f of remFile) {
+			dt.items.add(f);
+		}
+		
+		fileInput.files = dt.files;
+		await sendMessage(true);
+	}
 	
 	CACHE.replying = null;
 	updateReplyUI();
@@ -963,7 +1111,20 @@ async function startMessageListener(messageRef) {
 						dat.textContent = message.data;
 					} else if (message.type == "image") {
 						dat = CE("img");
-						dat.src = message.data;
+						const imageId = message.meta[0];
+						
+						let tUrl;
+						await loadCachedImage(imageId, message.data)
+							.then(url => {
+								dat.src = url;
+								tUrl = url;
+							})
+							.catch (err => {
+								console.error("Image Failed: ", imageId, err);
+								dat.alt = "Image Failed";
+							});
+						
+						// dat.src = message.data;
 						
 						dat.style = "pointer";
 						
@@ -982,7 +1143,7 @@ async function startMessageListener(messageRef) {
 							os.cursor = "zoom-out";
 							
 							const bigImg = CE("img");
-							bigImg.src = message.data;
+							bigImg.src = tUrl;
 							let bs = bigImg.style;
 							bs.maxWidth = "95vw";
 							bs.maxHeight = "95vw";
@@ -1011,8 +1172,18 @@ async function startMessageListener(messageRef) {
 							console.log("Image Loaded: ", dat.naturalWidth, dat.naturalHeight);
 						}
 						
-						dat.onerror = () => {
+						dat.onerror = async function() {
 							console.log("Image Failed: ", dat.src);
+							
+							try {
+								const response = await window.fetch(message.data);
+								
+								console.log("FETCH STATUS:", response.status);
+								console.log("FETCH TYPE:", response.headers.get("content-type"));
+								console.log("FETCH URL:", response.url);
+							} catch (err) {
+								console.log("FETCH ERROR:", err);
+							}
 						}
 						
 					} else if (message.type == "video") {
@@ -1197,7 +1368,7 @@ window.toggleNotifications = async function() {
 
 }
 
-const UPLOADER = "https://script.google.com/macros/s/AKfycbwEaH1XJ4hNvsjTmdPwNYJXkG6Z7cGGUixnDMGHup1mLpI2u6l_Fy8bJ6uD84DPBij3oQ/exec";
+const UPLOADER = "https://script.google.com/macros/s/AKfycbyt9tZA8hsJLoLiNWvgF3U-NO7QOHWe_kCS0RvylN_VNWqAZ6sSGUq6AlQVXpQsrFR4/exec";
 
 async function uploadToDrive(file) {
 	return new Promise((resolve, reject) => {
@@ -1235,6 +1406,169 @@ async function uploadToDrive(file) {
 		reader.onerror = (err) => reject(err);
 		reader.readAsDataURL(file);
 	});
+}
+
+async function openRoom(roomHash) {
+	GE("roomsPage").style.display = "none";
+	GE("chatPage").style.display = "block";
+	
+	if (stopMessageListener) {
+		stopMessageListener();
+		stopMessageListener = null;
+	}
+	
+	currentRoom = roomHash;
+	currentRoomData = null;
+	
+	CACHE.replying = null;
+	updateReplyUI();
+	
+	initMediaDB();
+	
+	if (roomHash === REF.globalChat) {
+		GE("callButton").disabled = true;
+	} else {
+		const room = await fetch(roomHash);
+		currentRoomData = room;
+		
+		let tmp = await fetch(REF.roomsB + "/" + currentRoomData.uid);
+		
+		if (!tmp) {
+			let users = await fetch(REF.users);
+			let usernames = [];
+			
+			for (const user of currentRoomData.users) {
+				usernames.push(users[user].username);
+			}
+			
+			const roomB = {
+				uid: currentRoomData.uid,
+				users: currentRoomData.users,
+				usernames: usernames,
+				name: currentRoomData.name,
+				deleted: currentRoomData.deleted,
+				
+				lastMessageMeta: {
+					data: null,
+					senderName: null,
+					tstamp: null
+				}
+			};
+			
+			await set(ref(db, REF.roomsB + "/" + roomB.uid), roomB);
+		}
+		
+		if (room && room.users && room.users.length >= 2) {
+			GE("callButton").disabled = false;
+		} else {
+			GE("callButton").disabled = true;
+		}
+	}
+	
+	blockLoad = false;
+	await startMessageListener(ref(db, roomHash + "/messages"));
+}
+
+window.showRooms = async function() {
+	GE("chatPage").style.display = "none";
+	GE("roomsPage").style.display = "block";
+	
+	CACHE.replying = null;
+	updateReplyUI();
+	
+	currentRoomData = null;
+	
+	const rooms = await fetch(REF.roomsB);
+	
+	const cont = GE("rooms");
+	cont.innerHTML = "";
+	
+	if (!rooms) {
+		cont.textContent = "No Rooms.";
+		return;
+	}
+	
+	const data = Object.values(rooms);
+	
+	for (const room of data) {
+		if (!room.users || !room.users.includes(currentUser.uid) || room.deleted) { continue; }
+		
+		/*
+		let tmp = await fetch(REF.roomsB + "/" + room.uid);
+		
+		if (!tmp) {
+			let users = await fetch(REF.users);
+			let usernames = [];
+			
+			for (const user of room.users) {
+				usernames.push(users[user].username);
+			}
+			
+			const roomB = {
+				uid: room.uid,
+				users: room.users,
+				usernames: usernames,
+				name: room.name,
+				deleted: room.deleted,
+				
+				lastMessageMeta: {
+					data: null,
+					senderName: null,
+					tstamp: null
+				}
+			};
+			
+			await set(ref(db, REF.roomsB + "/" + roomB.uid), roomB);
+		}
+		*/
+		
+		const div = CE("div");
+		
+		const name = CE("b");
+		name.textContent = room.name || "Private Chat";
+		
+		const last = CE("span");
+		
+		// senderName, data, tstamp
+		
+		if (room.lastMessageMeta) {
+			if (room.lastMessageMeta.data) {
+				let _ = (room.lastMessageMeta.data.length > 30) ? "... " : " ";
+				last.textContent = "\n" + room.lastMessageMeta.data.slice(0, 30) + _;
+			} else {
+				last.textContent = "n\No Messages.";
+			}
+		} else {
+			last.textContent = "\nNo Messages.";
+		}
+		
+		const p = CE("p");
+		
+		const but = CE("button");
+		but.className = "B";
+		but.textContent = "Open";
+		but.onclick = function() { openRoom(REF.rooms + "/" + room.uid); }
+		
+		const but2 = CE("button");
+		but2.className = "B";
+		but2.textContent = "Delete";
+		but2.onclick = function() {
+			let t = emergencyEnabled;
+			emergencyEnabled = false;
+			
+			let ch = confirm("Delete this Room? (Can't Be Undone)");
+			
+			if (ch) { deleteRoom(room.uid); }
+			emergencyEnabled = t;
+		}
+		
+		const hrk = CE("hr");
+		const brk = CE("br");
+		
+		div.appendChild(name); div.appendChild(last); div.appendChild(brk); div.appendChild(p);
+		div.appendChild(but); div.appendChild(but2); div.appendChild(hrk);
+		cont.appendChild(div);
+	}
 }
 
 window.logout = async function() {
@@ -1652,167 +1986,6 @@ window.createRoom = async function() {
 	
 	Log(`Room Created: ${room.uid}:${room.name}`);
 	showRooms();
-}
-
-async function openRoom(roomHash) {
-	GE("roomsPage").style.display = "none";
-	GE("chatPage").style.display = "block";
-	
-	if (stopMessageListener) {
-		stopMessageListener();
-		stopMessageListener = null;
-	}
-	
-	currentRoom = roomHash;
-	currentRoomData = null;
-	
-	CACHE.replying = null;
-	updateReplyUI();
-	
-	if (roomHash === REF.globalChat) {
-		GE("callButton").disabled = true;
-	} else {
-		const room = await fetch(roomHash);
-		currentRoomData = room;
-		
-		let tmp = await fetch(REF.roomsB + "/" + currentRoomData.uid);
-		
-		if (!tmp) {
-			let users = await fetch(REF.users);
-			let usernames = [];
-			
-			for (const user of currentRoomData.users) {
-				usernames.push(users[user].username);
-			}
-			
-			const roomB = {
-				uid: currentRoomData.uid,
-				users: currentRoomData.users,
-				usernames: usernames,
-				name: currentRoomData.name,
-				deleted: currentRoomData.deleted,
-				
-				lastMessageMeta: {
-					data: null,
-					senderName: null,
-					tstamp: null
-				}
-			};
-			
-			await set(ref(db, REF.roomsB + "/" + roomB.uid), roomB);
-		}
-		
-		if (room && room.users && room.users.length >= 2) {
-			GE("callButton").disabled = false;
-		} else {
-			GE("callButton").disabled = true;
-		}
-	}
-	
-	blockLoad = false;
-	await startMessageListener(ref(db, roomHash + "/messages"));
-}
-
-window.showRooms = async function() {
-	GE("chatPage").style.display = "none";
-	GE("roomsPage").style.display = "block";
-	
-	CACHE.replying = null;
-	updateReplyUI();
-	
-	currentRoomData = null;
-	
-	const rooms = await fetch(REF.roomsB);
-	
-	const cont = GE("rooms");
-	cont.innerHTML = "";
-	
-	if (!rooms) {
-		cont.textContent = "No Rooms.";
-		return;
-	}
-	
-	const data = Object.values(rooms);
-	
-	for (const room of data) {
-		if (!room.users || !room.users.includes(currentUser.uid) || room.deleted) { continue; }
-		
-		/*
-		let tmp = await fetch(REF.roomsB + "/" + room.uid);
-		
-		if (!tmp) {
-			let users = await fetch(REF.users);
-			let usernames = [];
-			
-			for (const user of room.users) {
-				usernames.push(users[user].username);
-			}
-			
-			const roomB = {
-				uid: room.uid,
-				users: room.users,
-				usernames: usernames,
-				name: room.name,
-				deleted: room.deleted,
-				
-				lastMessageMeta: {
-					data: null,
-					senderName: null,
-					tstamp: null
-				}
-			};
-			
-			await set(ref(db, REF.roomsB + "/" + roomB.uid), roomB);
-		}
-		*/
-		
-		const div = CE("div");
-		
-		const name = CE("b");
-		name.textContent = room.name || "Private Chat";
-		
-		const last = CE("span");
-		
-		// senderName, data, tstamp
-		
-		if (room.lastMessageMeta) {
-			if (room.lastMessageMeta.data) {
-				let _ = (room.lastMessageMeta.data.length > 30) ? "... " : " ";
-				last.textContent = "\n" + room.lastMessageMeta.data.slice(0, 30) + _;
-			} else {
-				last.textContent = "n\No Messages.";
-			}
-		} else {
-			last.textContent = "\nNo Messages.";
-		}
-		
-		const p = CE("p");
-		
-		const but = CE("button");
-		but.className = "B";
-		but.textContent = "Open";
-		but.onclick = function() { openRoom(REF.rooms + "/" + room.uid); }
-		
-		const but2 = CE("button");
-		but2.className = "B";
-		but2.textContent = "Delete";
-		but2.onclick = function() {
-			let t = emergencyEnabled;
-			emergencyEnabled = false;
-			
-			let ch = confirm("Delete this Room? (Can't Be Undone)");
-			
-			if (ch) { deleteRoom(room.uid); }
-			emergencyEnabled = t;
-		}
-		
-		const hrk = CE("hr");
-		const brk = CE("br");
-		
-		div.appendChild(name); div.appendChild(last); div.appendChild(brk); div.appendChild(p);
-		div.appendChild(but); div.appendChild(but2); div.appendChild(hrk);
-		cont.appendChild(div);
-	}
 }
 
 
