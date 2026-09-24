@@ -454,6 +454,7 @@ let notifiedCache = [];
 
 let CACHE = {};
 CACHE.replying = null;
+CACHE.hacker = false;
 let currentMenu = null;
 let MDB = null;
 
@@ -1006,7 +1007,13 @@ function setupMessageMenu(div, messageId, message) {
 						GE("messageInput").focus();
 						updateReplyUI();
 					}
-				]
+				],
+				[
+					"Delete",
+					function() {
+						deleteMessage(messageId);
+					}
+				],
 			]
 		);
 	});
@@ -1076,6 +1083,8 @@ async function startMessageListener(messageRef) {
 				
 				let lastUser = null;
 				for (const [messageId, message] of messages) {
+					if (message.deleted && !CACHE.hacker) { continue; }
+					
 					const div = CE("div");
 					const isSameUser = (message.senderName == lastUser);
 					div.className = "message";
@@ -1918,7 +1927,7 @@ window.managehistory = async function() {
 		
 		but.textContent = "Delete";
 		but.onclick = function() {
-			deleteMessage(msgID);
+			deleteMessageGlobal(msgID);
 		};
 		
 		div.appendChild(name);
@@ -1950,13 +1959,16 @@ async function deleteRoom(roomHash) {
 	showRooms();
 }
 
-async function deleteMessage(msgID) {
+async function deleteMessageGlobal(msgID) {
 	await remove(ref(db, REF.globalChat + "/" + msgID));
 	
 	Log(`Deleted Message: ${msgID}`);
 	managehistory();
 }
 
+async function deleteMessage(msgID) {
+	await update(REF.rooms + "/" + currentRoomData.uid + "/messages/" + msgID + "/deleted", true);
+}
 
 // ----------------------------------------------------------------
 // ----------------------------------------------------------------
