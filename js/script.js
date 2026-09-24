@@ -18,7 +18,8 @@ import {
 	limitToLast,
 	endAt,
 	onChildChanged,
-	startAt
+	startAt,
+	runTransaction
 } from "https://www.gstatic.com/firebasejs/12.1.0/firebase-database.js";
 
 import {
@@ -361,21 +362,21 @@ function clearFiles(type="images") {
 	});
 }
 
-async function loadCachedImage(imageId) {
-	const cached = await getFile(imageId);
+async function loadCachedFile(fId, type="Image") {
+	const cached = await getFile(fId);
 	
 	if (cached) {
-		console.log("Image Loaded from Cache: ", imageId);
+		console.log(type + " Loaded from Cache: ", fId);
 		return URL.createObjectURL(cached.blob);
 	}
 	
-	console.log("Image not Cached. Downlaoding: ", imageId);
+	console.log(type + " not Cached. Downlaoding: ", fId);
 	
-	const downloadUrl = `${UPLOADER}?fileId=${encodeURIComponent(imageId)}`;
+	const downloadUrl = `${UPLOADER}?fileId=${encodeURIComponent(fId)}`;
 	const response = await window.fetch(downloadUrl);
 	
 	if (!response.ok) {
-		throw new Error("Image Download Failed: HTTP ", response.status, " Message: ", response.message || "NaN");
+		throw new Error(type + " Download Failed: HTTP ", response.status, " Message: ", response.message || "NaN");
 	}
 	
 	const raw = await response.text();
@@ -400,9 +401,9 @@ async function loadCachedImage(imageId) {
 	);
 	
 	// const blob = await response.blob();
-	await saveFile(imageId, blob);
+	await saveFile(fId, blob);
 	
-	console.log("Image downloaded and cached: ", imageId);
+	console.log(type + " downloaded and cached: ", fId);
 	return URL.createObjectURL(blob);
 }
 
@@ -729,8 +730,16 @@ window.sendMessage = async function(recursive=false) {
 		CACHE.replying = null;
 		updateReplyUI();
 		
-		sendFile(CACHE.recorded, options=["🎶 Audio", "audio"]);
+		const namedFile = new File(
+			[CACHE.recorded],
+			`voice-${Date.now()}.webm`,
+			{ type: CACHE.recorded.type }
+		);
+		
+		sendFile(namedFile, ["🎶 Audio", "audio"]);
 		CACHE.recorded = null;
+		
+		updateRecordingUI();
 	}
 	
 	fileInput.value = "";
@@ -956,247 +965,6 @@ let hasMoreMessages = true;
 
 const MESSAGE_CHUNK = 50;
 
-async function renderMessageLegacy(messageId, message) {
-	const div = CE("div");
-	const isSameUser = (message.senderName == lastUser);
-	div.className = "message";
-	
-	div.style.position = "relative";
-	div.style.padding = "6px 45px 12px 10px"
-	div.style.marginTop = isSameUser ? "1px" : "5px";
-	div.style.marginBottom = "1px";
-	
-	if (!Array.isArray(message.seenBy)) {
-		message.seenBy = [message.sender];
-	}
-	
-	if (!message.seenBy.includes(currentUser.uid)) {
-		if (focussed) {
-			message.seenBy.push(currentUser.uid);
-			
-			blockLoad = true;
-			await update(
-				currentRoom + "/messages/" + messageId + "/seenBy",
-				message.seenBy
-			);
-			blockLoad = false;
-		}
-	}
-	
-	let tmp = true;
-	
-	if (currentRoomData) {
-		for (const user of currentRoomData.users) {
-			if (!message.seenBy.includes(user)) {
-				tmp = false;
-				return null;
-			}
-		}
-	} else {
-		tmp = false;
-	}
-	
-	const replyingTo = CE("b");
-	if (message.replyingTo) {
-		replyingTo.textContent = message.replyingTo[1];
-	}
-	
-	const name = CE("b");
-	name.textContent = message.senderName || "Unknown";
-	
-	const brk2 = CE("br");
-	const time = CE("span");
-	time.className = "message-time";
-	
-	let formatted;
-	
-	if (!message.time) { message.time = null; }
-	if (message.time !== null) {
-		formatted = formatDate(message.time * 1000);
-	} else {
-		formatted = "TimeStampError";
-	}
-	
-	if (message.sender == currentUser.uid && tmp && (formatted != "TimeStampError")) {
-		formatted = "✔" + ' ' + formatted;
-	}
-	
-	time.textContent = formatted;
-	time.style.fontSize = "10px";
-	time.style.position = "absolute";
-	time.style.right = "4px";
-	time.style.bottom = "2px";
-	
-	time.style.display = 'inline-block';
-	time.style.transform = "scale(0.8)";
-	time.style.transformOrigin = "bottom right";
-	time.style.whiteSpace = "nowrap";
-	time.style.color = "#888";
-	
-	if (message.replyingTo) {
-		const replyBox = CE("div");
-		
-		replyBox.style.padding = "3px 6px";
-		replyBox.style.marginBottom = "4px";
-		replyBox.style.borderLeft = "3px solid #888";
-		replyBox.style.fontSize = "12px";
-		replyBox.style.opacity = "0.75";
-		replyBox.style.overflow = "hidden";
-		replyBox.style.textOverflow = "ellipsis";
-		replyBox.style.whiteSpace = "nowrap";
-		replyBox.style.background = "#ddd";
-		
-		const replyLabel = CE("b");
-		replyLabel.textContent = "↩ ";
-		
-		const replyText = CE("span");
-		replyText.textContent = message.replyingTo[1];
-		
-		replyBox.appendChild(replyLabel);
-		replyBox.appendChild(replyText);
-		
-		replyBox.onclick = function(event) {
-			event.stopPropagation();
-			
-			const targetId = message.replyingTo[0];
-			
-			const target = GE("messages").querySelector(`[data-message-id="${targetId}"]`);
-			
-			if (target) {
-				target.scrollIntoView({
-					behavior: "smooth",
-					block: "center"
-				});
-			}
-		};
-		
-		div.appendChild(replyBox);
-	}
-	
-	let dat;
-	if (message.type == "text") {
-		dat = CE("span");
-		dat.textContent = message.data;
-	} else if (message.type == "image") {
-		dat = CE("div");
-		dat.textContent = "📷 Image Loading...";
-		
-		dat.style.maxWidth = "380px";
-		dat.style.maxHeight = "550px";
-		dat.style.width = "auto";
-		dat.style.height = "auto";
-		
-		const imageId = message.meta[0];
-		
-		let tUrl;
-		loadCachedImage(imageId, message.data)
-			.then(url => {
-				dat.textContent = "";
-				
-				const imgCont = CE("img");
-				imgCont.src = url;
-				
-				tUrl = url;
-				
-				imgCont.style = "pointer";
-				
-				imgCont.onclick = (event) => {
-					event.stopPropagation();
-					
-					const overlay = CE("div");
-					let os = overlay.style;
-					os.position = "fixed";
-					os.inset = "0";
-					os.background = "rgba(0,0,0,0.85)";
-					os.display = "flex";
-					os.alignItems = "center";
-					os.justifyContent = "center";
-					os.zindex = "9999";
-					os.cursor = "zoom-out";
-					
-					const bigImg = CE("img");
-					bigImg.src = tUrl;
-					let bs = bigImg.style;
-					bs.maxWidth = "95vw";
-					bs.maxHeight = "95vw";
-					bs.objectFit = "contain";
-					bs.borderRadius = "8px";
-					
-					overlay.appendChild(bigImg);
-					document.body.appendChild(overlay);
-					
-					overlay.onclick = () => {
-						overlay.remove();
-					}
-					
-				}
-				
-				imgCont.style.maxWidth = "380px";
-				imgCont.style.maxHeight = "550px";
-				imgCont.style.width = "auto";
-				imgCont.style.height = "auto";
-				
-				imgCont.style.display = "block";
-				imgCont.style.borderRadius = "8px";
-				imgCont.style.objectFit = "contain";
-				
-				imgCont.onload = () => {
-					requestAnimationFrame(() => {
-						cont.scrollTop = cont.scrollHeight;
-					});
-					console.log("Image Loaded: ", dat.naturalWidth, dat.naturalHeight);
-				}
-				
-				imgCont.onerror = async function() {
-					console.log("Image Failed: ", dat.src);
-					
-					try {
-						const response = await window.fetch(message.data);
-						
-						console.log("FETCH STATUS:", response.status);
-						console.log("FETCH TYPE:", response.headers.get("content-type"));
-						console.log("FETCH URL:", response.url);
-					} catch (err) {
-						console.log("FETCH ERROR:", err);
-					}
-				}
-				
-				dat.replaceWith(imgCont);
-			})
-			.catch (err => {
-				console.error("Image Failed: ", imageId, err);
-				dat.alt = "Image Failed";
-			});
-		
-		// dat.src = message.data;
-		
-		
-	} else if (message.type == "video") {
-		dat = CE("video");
-		dat.src = message.data;
-		dat.controls = true;
-	} else {
-		return 0;
-	}
-	
-	div.dataset.messageId = messageId;
-	
-	setupMessageMenu(div, messageId, message);
-	
-	if (lastUser != message.senderName) {
-		div.appendChild(name);
-		const brkName = CE("br");
-		div.appendChild(brkName);
-	}
-	
-	div.appendChild(dat);
-	div.appendChild(time);
-	
-	div.style.overflow = 'hidden';
-	
-	return div;
-}
-
 GE("messages").addEventListener(
 	"scroll",
 	function() {
@@ -1317,23 +1085,34 @@ async function startMessageListener(messageRef) {
 	
 	cont.innerHTML = "";
 	
+	const renderingInProgress = new Set();
+	
+	async function markSeen(msgId) {
+		const seenRef = ref(db, currentRoom + "/messages/" + msgId + "/seenBy");
+		
+		try {
+			await runTransaction(seenRef, (current) => {
+				const arr = Array.isArray(current) ? current : [];
+				if (!arr.includes(currentUser.uid)) arr.push(currentUser.uid);
+				return arr;
+			});
+		} catch (err) {
+			console.error("Markseen Failed: ", err);
+		}
+	}
+	
 	oldestMessageTime = null;
 	newestMessageTime = null;
 	loadingOlderMessages = false;
 	hasMoreMessages = true;
 	
 	renderMessage = async function(messageId, message, prepend=false) {
-		if (!message) {
-			return;
-		}
+		if (!message) return;
+		if (message.deleted && !CACHE.hacker) return;
+		if (cont.querySelector(`[data-message-id="${messageId}"]`)) return;
 		
-		if (message.deleted && !CACHE.hacker) {
-			return;
-		}
-		
-		if (cont.querySelector(`[data-message-id="${messageId}"]`)) {
-			return;
-		}
+		if (renderingInProgress.has(messageId)) return;
+		renderingInProgress.add(messageId);
 		
 		const div = CE("div");
 		
@@ -1363,17 +1142,18 @@ async function startMessageListener(messageRef) {
 		if (!message.seenBy.includes(currentUser.uid)) {
 			if (focussed) {
 				message.seenBy.push(currentUser.uid);
-				blockLoad = true;
+				markSeen(messageId);
+				// blockLoad = true;
 				
-				await update(
-					currentRoom +
-					"/messages/" +
-					messageId +
-					"/seenBy",
-					message.seenBy
-				);
+				// await update(
+					// currentRoom +
+					// "/messages/" +
+					// messageId +
+					// "/seenBy",
+					// message.seenBy
+				// );
 
-				blockLoad = false;
+				// blockLoad = false;
 			}
 		}
 		
@@ -1400,6 +1180,7 @@ async function startMessageListener(messageRef) {
 		div.dataset.senderName = message.senderName || "";
 		
 		const time = CE("span");
+		time.className = "message-time";
 		
 		let formatted;
 		
@@ -1489,7 +1270,7 @@ async function startMessageListener(messageRef) {
 			
 			let tUrl;
 			
-			loadCachedImage(imageId, message.data)
+			loadCachedFile(imageId, message.data)
 				.then(url => {
 					dat.textContent = "";
 					
@@ -1574,6 +1355,47 @@ async function startMessageListener(messageRef) {
 			dat = CE("video");
 			dat.src = message.data;
 			dat.controls = true;
+		} else if (message.type == "audio") {
+			dat = CE("div");
+			dat.textContent = "🎶 Audio Loading...";
+			
+			const audioId = message.meta[0];
+			
+			let tUrl;
+			
+			loadCachedFile(audioId, message.data)
+				.then(url => {
+					dat.textContent = "";
+					
+					const audioCont = CE("audio");
+					
+					audioCont.src = url;
+					tUrl = url;
+					
+					audioCont.controls = true;
+					
+					audioCont.onload = () => {
+						requestAnimationFrame(() => {
+							cont.scrollTop = cont.scrollHeight;
+						});
+					};
+					
+					audioCont.onerror = function() {
+						console.log(
+							"Audio Failed:",
+							audioCont.src
+						);
+					};
+					dat.replaceWith(audioCont);
+				})
+				.catch(err => {
+					console.error(
+						"Audio Failed:",
+						audioId,
+						err
+					);
+					dat.textContent = "🎶 Audio Failed";
+				});
 		} else {
 			return;
 		}
@@ -1899,18 +1721,111 @@ window.toggleNotifications = async function() {
 
 }
 
-window.recordingTrigger = function() {
-	if (CACHE.recording) {
-		dialog("Coming Soon!", true);
-		recordingAction("stop");
-		const audioD = recordingAction("get");
-		CACHE.recorded = audioD;
+function updateRecordingUI() {
+	let el = GE("recordingIndicator");
+	
+	if (!el) {
+		el = CE("div");
+		el.id = "recordingIndicator";
+		el.style.display = "none";
+		el.style.padding = "4px 8px";
+		el.style.margin = "4px 0";
+		el.style.fontSize = "12px";
+		el.style.borderRadius = "4px";
+		el.style.background = "#fde2e2";
 		
-		const fileId = uploadToDrive(audio);
+		const label = CE("span");
+		label.id = "recordingIndicatorLabel";
+		el.appendChild(label);
 		
-	} else {
-		recordingAction("start");
+		const discardBtn = CE("button");
+		discardBtn.id = "recordingDiscardButton";
+		discardBtn.textContent = "Discard";
+		discardBtn.className = "B";
+		discardBtn.style.marginLeft = "8px";
+		discardBtn.onclick = function(event) {
+			event.stopPropagation();
+			CACHE.recorded = null;
+			updateRecordingUI();
+		};
+		el.appendChild(discardBtn);
+		
+		const input = GE("messageInput");
+		input.parentNode.insertBefore(el, input);
 	}
+	
+	const label = GE("recordingIndicatorLabel");
+	const discardBtn = GE("recordingDiscardButton");
+	
+	if (CACHE.recording) {
+		el.style.display = "block";
+		label.textContent = "🔴 Recording...";
+		discardBtn.style.display = "none";
+	} else if (CACHE.recorded) {
+		el.style.display = "block";
+		label.textContent = "🎙️ Voice note ready — press send";
+		discardBtn.style.display = "inline-block";
+	} else {
+		el.style.display = "none";
+	}
+}
+
+async function recordingAction(action) {
+	if (action == "start") {
+		if (CACHE.recording) return;
+		
+		try {
+			const stream = await navigator.mediaDevices.getUserMedia({audio:true});
+			CACHE.audioChunks = [];
+			
+			CACHE.mediaRecorder = new MediaRecorder(stream);
+			CACHE.mediaRecorder.ondataavailable = (event) => {
+				if (event.data.size > 0) {
+					CACHE.audioChunks.push(event.data);
+				}
+			}
+			
+			CACHE.mediaRecorder.start();
+			CACHE.recording = true;
+			console.log("Recording Started.");
+		} catch (err) {
+			console.error("Recording Error: ", err);
+			CACHE.recording = false;
+		}
+		
+	} else if (action == "stop") {
+		if (!CACHE.mediaRecorder) return;
+		if (!CACHE.recording) return;
+		
+		return new Promise((resolve) => {
+			CACHE.mediaRecorder.onstop = () => {
+				const audioBlob = new Blob(CACHE.audioChunks, {
+					type: CACHE.mediaRecorder.mimeType
+				});
+				
+				CACHE.recorded = audioBlob;
+				CACHE.mediaRecorder.stream.getTracks().forEach(t => t.stop());
+				
+				console.log("Recording Stopped.");
+				resolve(audioBlob);
+			}
+			CACHE.recording = false;
+			CACHE.mediaRecorder.stop();
+		});
+		
+	} else if (action == "get") {
+		return CACHE.recorded;
+	}
+	
+}
+
+window.recordingTrigger = async function() {
+	if (CACHE.recording) {
+		await recordingAction("stop");
+	} else {
+		await recordingAction("start");
+	}
+	updateRecordingUI();
 	
 	return;
 };
@@ -2327,7 +2242,7 @@ window.managehistory = async function() {
 	const cont = GE("history");
 	cont.innerHTML = "";
 	
-	const data = await fetch(REF.globalChat);
+	const data = await fetch(REF.globalChat + "/messages");
 	
 	if (!data) {
 		cont.textContent = "No history Yet.";
@@ -2359,6 +2274,11 @@ window.managehistory = async function() {
 		
 		if (msgData.type == "video") {
 			dat = CE("video");
+			dat.src = msgData.data;
+		}
+		
+		if (msgData.type == "audio") {
+			dat = CE("audio");
 			dat.src = msgData.data;
 		}
 		
@@ -2403,14 +2323,22 @@ async function deleteRoom(roomHash) {
 }
 
 async function deleteMessageGlobal(msgID) {
-	await remove(ref(db, REF.globalChat + "/" + msgID));
+	await remove(ref(db, REF.globalChat + "/messages/" + msgID));
 	
 	Log(`Deleted Message: ${msgID}`);
 	managehistory();
 }
 
 async function deleteMessage(msgID) {
-	await update(REF.rooms + "/" + currentRoomData.uid + "/messages/" + msgID + "/deleted", true);
+	if (currentRoomData) {
+		await update(REF.rooms + "/" + currentRoomData.uid + "/messages/" + msgID + "/deleted", true);
+	} else {
+		if (!CACHE.hacker) {
+			dialog("Not Allowed In Global Chat.", true);
+		} else {
+			await update(REF.globalChat + "/messages/" + msgID + "/deleted", true);
+		}
+	}
 }
 
 // ----------------------------------------------------------------
