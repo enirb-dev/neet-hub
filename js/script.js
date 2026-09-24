@@ -461,6 +461,9 @@ let notifiedCache = [];
 let CACHE = {};
 CACHE.replying = null;
 CACHE.hacker = false;
+CACHE.recording = null;
+CACHE.recorded = null;
+
 let currentMenu = null;
 let MDB = null;
 
@@ -611,152 +614,6 @@ window.addEventListener("focus", function() {
 // ----------------------------------------------------------------
 // ----------------------------------------------------------------
 
-window.register = async function() {
-	const user = GE("username").value.trim().toLowerCase();
-	const pass = GE("password").value.trim();
-	
-	if (!user || !pass) {
-		setLoginStatus("Enter username and Password.");
-		return;
-	}
-	
-	if (await fetch(REF.newReg) === false) {
-		setLoginStatus("Registrations Closed By Admin.");
-		return;
-	}
-	
-	if (
-		!/^[a-z0-9_]{3,20}$/.test(user)
-	) {
-		setLoginStatus(
-			"username must contain only letters, numbers or _. 3-20 characters."
-		);
-		return;
-	}
-	
-	const email = usernameToEmail(user);
-	
-	try {
-		const cred = await createUserWithEmailAndPassword(
-			auth,
-			email,
-			pass
-		);
-		
-		currentUser = cred.user;
-		currentUsername = user;
-		
-		await update(
-			REF.users + "/" + currentUser.uid,
-			
-			{
-				username: currentUsername,
-				createdAt: Date.now(),
-				lastSeen: 0,
-				notifications: {}
-			}
-			
-		);
-		
-		setLoginStatus("Account Created! You can now login.");
-		Log(`User Registered: ${currentUser.uid}:${currentUsername}`);
-	} catch (err) {
-		setLoginStatus("Error Registering User: " + err.message);
-	}
-};
-
-
-window.login = async function() {
-	emergencyTriggered = false;
-	
-	const user = GE("username").value.trim().toLowerCase();
-	const pass = GE("password").value.trim();
-	
-	if (!user || !pass) {
-		setLoginStatus("Enter username and Password.");
-		return;
-	}
-	
-	if ((await fetch(REF.frozen) === true) && (user !== "admin")) {
-		setLoginStatus("System Frozen by Admin.");
-		return;
-	}
-	const email = usernameToEmail(user)
-	
-	try {
-		await signInWithEmailAndPassword(
-			auth,
-			email,
-			pass
-		);
-	
-	} catch (err) {
-		setLoginStatus("Error Loggin In: " + err.message);
-	}
-	
-	Log(`Login Attempted User: ${currentUsername}`);
-}
-
-onAuthStateChanged(
-	auth,
-	async function(user) {
-		if (user) {
-			currentUser = user;
-			const data = await fetch(REF.users + "/" + user.uid);
-			
-			if (data) {
-				currentUsername = data.username;
-				if (currentUsername.includes("test")) {
-					if (emergencyEnabled) {
-						toggleEmergencyActivity();
-					}
-				}
-			}
-		
-		
-		if (currentUsername == "admin") {
-			//AdminSDK = await import("./swan.js");
-			if (emergencyEnabled) { toggleEmergencyActivity(); }
-			GE("loginPage").style.display = "none";
-			GE("chatPage").style.display = "none";
-			GE("adminPage").style.display = "block";
-			GE("callPage").style.display = "none";
-			GE("adminPanel").style.display = "block";
-			
-			Log("ADMIN LOGGED IN.");
-			return;
-		} else {
-			Log(`Logged User: ${currentUsername}`);
-		}
-		
-		GE("currentUser").textContent = currentUsername;
-		
-		GE("loginPage").style.display = "none";
-		GE("adminPage").style.display = "none";
-		
-		GE("chatPage").style.display = "block";
-		
-		startIncomingCallListener();
-		startNotificationListener();
-		openRoom(REF.globalChat);
-		
-		setLoginStatus("Logged In.");
-		
-		} else {
-			currentUser = null;
-			currentUsername = null;
-			if (stopMessageListener) {
-				stopMessageListener();
-				stopMessageListener = null;
-			}
-		}
-	}
-);
-
-
-
-// ----------------------------------------------------------------
-// ----------------------------------------------------------------
 window.sendMessage = async function(recursive=false) {
 	if (!currentUser || !currentRoom) {
 		return;
@@ -798,12 +655,7 @@ window.sendMessage = async function(recursive=false) {
 	
 	const files = Array.from(fileInput.files);
 	
-	if (files.length == 0) {
-		
-		if (!text) {
-			return null;
-		}
-		
+	if (files.length == 0 && text) {
 		const message = {
 			sender: currentUser.uid,
 			senderName: currentUsername,
@@ -871,6 +723,14 @@ window.sendMessage = async function(recursive=false) {
 		}
 		
 		return;
+	} else if (CACHE.recorded) {
+		const replyingTo = CACHE.replying;
+		
+		CACHE.replying = null;
+		updateReplyUI();
+		
+		sendFile(CACHE.recorded, options=["🎶 Audio", "audio"]);
+		CACHE.recorded = null;
 	}
 	
 	fileInput.value = "";
@@ -879,12 +739,19 @@ window.sendMessage = async function(recursive=false) {
 	CACHE.replying = null;
 	updateReplyUI();
 	
-	async function sendFile(file) {
+		
+	for (const file of files) {
+		sendFile(file);
+	}
+};
+
+
+async function sendFile(file, options=["📷 Image", "image"]) {
 		const cont = GE("messages");
 		
 		const sendingDiv = CE("div");
 		sendingDiv.className = "message";
-		sendingDiv.textContent = "📷 Image Sending...";
+		sendingDiv.textContent = `${options[0]} Sending...`;
 		
 		sendingDiv.style.position = "relative";
 		sendingDiv.style.padding = "6px 45px 12px 10px";
@@ -900,19 +767,19 @@ window.sendMessage = async function(recursive=false) {
 			
 			const uploadResult = await uploadToDrive(file);
 			
-			const imageId = uploadResult.fileId;
-			const imageURL = `https://lh3.googleusercontent.com/d/${imageId}=w2000`;
+			const fId = uploadResult.fileId;
+			const fURL = `https://lh3.googleusercontent.com/d/${fId}=w2000`;
 			
 			const message = {
 				sender: currentUser.uid,
 				senderName: currentUsername,
-				type: "image",
-				data: imageURL,
+				type: options[1],
+				data: fURL,
 				tstamp: Date.now(),
 				time: Math.floor(Date.now() / 1000),
 				seenBy: [currentUser.uid],
 				replyingTo: CACHE.replying,
-				meta: [imageId]
+				meta: [fId]
 			};
 			
 			
@@ -927,7 +794,7 @@ window.sendMessage = async function(recursive=false) {
 			
 			const lastMeta = {
 				senderName: currentUsername,
-				data: "📷 Image",
+				data: options[0],
 				tstamp: Date.now()
 			};
 			
@@ -971,19 +838,15 @@ window.sendMessage = async function(recursive=false) {
 			}
 		} catch (err) {
 			console.error(
-				"Image Send Failed:",
+				options[1] + " Send Failed:",
 				file.name,
 				err
 			);
 			
-			sendingDiv.textContent = "📷 Image Loading Failed.";
+			sendingDiv.textContent = options[0] + " Loading Failed.";
 		}
-	}
-	
-	for (const file of files) {
-		sendFile(file);
-	}
-};
+}
+
 
 async function chatPageUpdate() {
 	if (currentRoomData) {
@@ -1143,6 +1006,8 @@ async function renderMessageLegacy(messageId, message) {
 	
 	const brk2 = CE("br");
 	const time = CE("span");
+	time.className = "message-time";
+	
 	let formatted;
 	
 	if (!message.time) { message.time = null; }
@@ -2034,6 +1899,22 @@ window.toggleNotifications = async function() {
 
 }
 
+async function recordingTrigger() {
+	if (CACHE.recording) {
+		dialog("Coming Soon!", true);
+		recordingAction("stop");
+		const audioD = recordingAction("get");
+		CACHE.recorded = audioD;
+		
+		const fileId = uploadToDrive(audio);
+		
+	} else {
+		recordingAction("start");
+	}
+	
+	return;
+}
+
 const UPLOADER = "https://script.google.com/macros/s/AKfycbyt9tZA8hsJLoLiNWvgF3U-NO7QOHWe_kCS0RvylN_VNWqAZ6sSGUq6AlQVXpQsrFR4/exec";
 
 async function uploadToDrive(file) {
@@ -2669,6 +2550,155 @@ GE("messageInput").addEventListener(
 // ----------------------------------------------------------------
 // ----------------------------------------------------------------
 
+
+window.register = async function() {
+	const user = GE("username").value.trim().toLowerCase();
+	const pass = GE("password").value.trim();
+	
+	if (!user || !pass) {
+		setLoginStatus("Enter username and Password.");
+		return;
+	}
+	
+	if (await fetch(REF.newReg) === false) {
+		setLoginStatus("Registrations Closed By Admin.");
+		return;
+	}
+	
+	if (
+		!/^[a-z0-9_]{3,20}$/.test(user)
+	) {
+		setLoginStatus(
+			"username must contain only letters, numbers or _. 3-20 characters."
+		);
+		return;
+	}
+	
+	const email = usernameToEmail(user);
+	
+	try {
+		const cred = await createUserWithEmailAndPassword(
+			auth,
+			email,
+			pass
+		);
+		
+		currentUser = cred.user;
+		currentUsername = user;
+		
+		await update(
+			REF.users + "/" + currentUser.uid,
+			
+			{
+				username: currentUsername,
+				createdAt: Date.now(),
+				lastSeen: 0,
+				notifications: {}
+			}
+			
+		);
+		
+		setLoginStatus("Account Created! You can now login.");
+		Log(`User Registered: ${currentUser.uid}:${currentUsername}`);
+	} catch (err) {
+		setLoginStatus("Error Registering User: " + err.message);
+	}
+};
+
+
+window.login = async function() {
+	emergencyTriggered = false;
+	
+	const user = GE("username").value.trim().toLowerCase();
+	const pass = GE("password").value.trim();
+	
+	if (!user || !pass) {
+		setLoginStatus("Enter username and Password.");
+		return;
+	}
+	
+	if ((await fetch(REF.frozen) === true) && (user !== "admin")) {
+		setLoginStatus("System Frozen by Admin.");
+		return;
+	}
+	const email = usernameToEmail(user)
+	
+	try {
+		await signInWithEmailAndPassword(
+			auth,
+			email,
+			pass
+		);
+	
+	} catch (err) {
+		setLoginStatus("Error Loggin In: " + err.message);
+	}
+	
+	Log(`Login Attempted User: ${currentUsername}`);
+}
+
+onAuthStateChanged(
+	auth,
+	async function(user) {
+		if (user) {
+			currentUser = user;
+			const data = await fetch(REF.users + "/" + user.uid);
+			
+			if (data) {
+				currentUsername = data.username;
+				if (currentUsername.includes("test")) {
+					if (emergencyEnabled) {
+						toggleEmergencyActivity();
+					}
+				}
+			}
+		
+		
+		if (currentUsername == "admin") {
+			//AdminSDK = await import("./swan.js");
+			if (emergencyEnabled) { toggleEmergencyActivity(); }
+			GE("loginPage").style.display = "none";
+			GE("chatPage").style.display = "none";
+			GE("adminPage").style.display = "block";
+			GE("callPage").style.display = "none";
+			GE("adminPanel").style.display = "block";
+			
+			Log("ADMIN LOGGED IN.");
+			return;
+		} else {
+			Log(`Logged User: ${currentUsername}`);
+		}
+		
+		GE("currentUser").textContent = currentUsername;
+		
+		GE("loginPage").style.display = "none";
+		GE("adminPage").style.display = "none";
+		
+		GE("chatPage").style.display = "block";
+		
+		startIncomingCallListener();
+		startNotificationListener();
+		openRoom(REF.globalChat);
+		
+		setLoginStatus("Logged In.");
+		
+		} else {
+			currentUser = null;
+			currentUsername = null;
+			if (stopMessageListener) {
+				stopMessageListener();
+				stopMessageListener = null;
+			}
+		}
+	}
+);
+
+
+
+// ----------------------------------------------------------------
+// ----------------------------------------------------------------
+
+
 const rtcConfiguration = {
 	iceServers: [
 		{
@@ -2679,6 +2709,7 @@ const rtcConfiguration = {
 		}
 	]
 };
+
 
 let peerConnection = null;
 let localStream = null;
