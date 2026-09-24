@@ -1271,6 +1271,7 @@ async function startMessageListener(messageRef) {
 								}
 								
 								dat.replaceWith(imgCont);
+								cont.scrollTop = cont.scrollHeight;
 							})
 							.catch (err => {
 								console.error("Image Failed: ", imageId, err);
