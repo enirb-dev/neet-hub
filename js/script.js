@@ -373,7 +373,7 @@ async function loadCachedImage(imageId) {
 	}
 	
 	const raw = await response.text();
-	console.log("Script Response: ", raw);
+	//console.log("Script Response: ", raw);
 	
 	const result = JSON.parse(raw);
 	
@@ -741,7 +741,6 @@ onAuthStateChanged(
 
 // ----------------------------------------------------------------
 // ----------------------------------------------------------------
-
 window.sendMessage = async function(recursive=false) {
 	if (!currentUser || !currentRoom) {
 		return;
@@ -763,115 +762,201 @@ window.sendMessage = async function(recursive=false) {
 			return [1, clean];
 		}
 		
-		return [0, str]
+		return [0, str];
 	}
 	
 	let tmp = formatString(text);
 	text = tmp[1];
-	if (tmp[0] == 1) { _time = null; }
-	
-	let type; let data; let meta;
-	
-	const files = fileInput.files;
-	
-	if (files.length == 0 && recursive) return;
-	const file = files[0];
-	
-	let remFile = null;
-	
-	if (file) {
-		try {
-			const uploadResult = await uploadToDrive(file);
-			
-			type = "image";
-			data = `https://lh3.googleusercontent.com/d/${uploadResult.fileId}=w2000`;
-			meta = [uploadResult.fileId];
-			
-			console.log("File Sent.")
-			
-			remFile = Array.from(fileInput.files).slice(1);
-			fileInput.value = "";
-			
-			if (remFile.length <= 0) {
-				remFile = null;
-			}
-		} catch (err) {
-			console.error("Error Occured: ", err);
-			return;
-		}
-	} else if (text) {
-		type = "text";
-		data = text;
-		meta = null;
-	} else {
-		return null;
+	if (tmp[0] == 1) {
+		_time = null;
 	}
 	
-	const message = {
-		sender: currentUser.uid,
-		senderName: currentUsername,
-		type: type,
-		data: data,
-		tstamp: Date.now(),
-		time: _time,
-		seenBy: [currentUser.uid],
-		replyingTo: CACHE.replying,
-		meta: meta
-	};
+	const files = Array.from(fileInput.files);
 	
-	const messageRef = push(
-		ref(db, currentRoom + "/messages")
-	);
-	
-	await set(messageRef, message);
-	
-	if (remFile) {
-		const dt = new DataTransfer();
-		for (const f of remFile) {
-			dt.items.add(f);
+	if (files.length == 0) {
+		
+		if (!text) {
+			return null;
 		}
 		
-		fileInput.files = dt.files;
-		await sendMessage(true);
+		const message = {
+			sender: currentUser.uid,
+			senderName: currentUsername,
+			type: "text",
+			data: text,
+			tstamp: Date.now(),
+			time: _time,
+			seenBy: [currentUser.uid],
+			replyingTo: CACHE.replying,
+			meta: null
+		};
+		
+		const messageRef = push(
+			ref(db, currentRoom + "/messages")
+		);
+		
+		await set(messageRef, message);
+		
+		CACHE.replying = null;
+		updateReplyUI();
+		
+		
+		const lastMeta = {
+			senderName: currentUsername,
+			data: text,
+			tstamp: Date.now()
+		};
+		
+		if (currentRoomData) {
+			
+			await set(
+				ref(
+					db,
+					REF.roomsB + "/" +
+					currentRoomData.uid +
+					"/lastMessageMeta"
+				),
+				lastMeta
+			);
+			
+			for (const _user of currentRoomData.users) {
+				
+				if (_user == currentUser.uid) {
+					continue;
+				}
+				
+				const notifRef = push(
+					ref(
+						db,
+						REF.users + "/" +
+						_user +
+						"/notifications"
+					)
+				);
+				
+				await set(notifRef, {
+					room: currentRoom,
+					roomName: currentRoomData.name,
+					sender: currentUser.uid,
+					senderName: currentUsername,
+					type: 1,
+					timestamp: Date.now()
+				});
+			}
+		}
+		
+		return;
 	}
+	
+	fileInput.value = "";
+	const replyingTo = CACHE.replying;
 	
 	CACHE.replying = null;
 	updateReplyUI();
 	
-	const lastMeta = {
-		senderName: currentUsername,
-		data: type == "text" ? text : "📷 Image",
-		tstamp: Date.now()
-	}
-	
-	if (currentRoomData) {
-		await set(
-			ref(db, REF.roomsB + "/" + currentRoomData.uid + "/lastMessageMeta"),
-			lastMeta
-		);
+	async function sendFile(file) {
+		const cont = GE("messages");
 		
-		const notif = [currentRoomData.name, currentUsername, 1, false];
-		for (const _user of currentRoomData.users) {
+		const sendingDiv = CE("div");
+		sendingDiv.className = "message";
+		sendingDiv.textContent = "📷 Image Sending...";
+		
+		sendingDiv.style.position = "relative";
+		sendingDiv.style.padding = "6px 45px 12px 10px";
+		sendingDiv.style.marginTop = "5px";
+		sendingDiv.style.marginBottom = "1px";
+		sendingDiv.style.overflow = "hidden";
+		
+		cont.appendChild(sendingDiv);
+		cont.scrollTop = cont.scrollHeight;
+		
+		try {
+			console.log("Starting upload:", file.name);
 			
-			if (_user == currentUser.uid) { continue; }
+			const uploadResult = await uploadToDrive(file);
 			
-			const notifRef = push(
-				ref(
-					db, REF.users + "/" + _user + "/notifications"
-				)
-			);
+			const imageId = uploadResult.fileId;
+			const imageURL = `https://lh3.googleusercontent.com/d/${imageId}=w2000`;
 			
-			await set(notifRef, {
-				room: currentRoom,
-				roomName: currentRoomData.name,
+			const message = {
 				sender: currentUser.uid,
 				senderName: currentUsername,
-				type: 1,
-				timestamp: Date.now()
-			});
+				type: "image",
+				data: imageURL,
+				tstamp: Date.now(),
+				time: Math.floor(Date.now() / 1000),
+				seenBy: [currentUser.uid],
+				replyingTo: CACHE.replying,
+				meta: [imageId]
+			};
+			
+			
+			const messageRef = push(
+				ref(db, currentRoom + "/messages")
+			);
+			
+			await set(messageRef, message);
+			console.log("File Sent:", file.name);
+			
+			const lastMeta = {
+				senderName: currentUsername,
+				data: "📷 Image",
+				tstamp: Date.now()
+			};
+			
+			if (currentRoomData) {
+				
+				await set(
+					ref(
+						db,
+						REF.roomsB + "/" +
+						currentRoomData.uid +
+						"/lastMessageMeta"
+					),
+					lastMeta
+				);
+				
+				
+				for (const _user of currentRoomData.users) {
+					
+					if (_user == currentUser.uid) {
+						continue;
+					}
+					
+					const notifRef = push(
+						ref(
+							db,
+							REF.users + "/" +
+							_user +
+							"/notifications"
+						)
+					);
+					
+					await set(notifRef, {
+						room: currentRoom,
+						roomName: currentRoomData.name,
+						sender: currentUser.uid,
+						senderName: currentUsername,
+						type: 1,
+						timestamp: Date.now()
+					});
+				}
+			}
+		} catch (err) {
+			console.error(
+				"Image Send Failed:",
+				file.name,
+				err
+			);
+			
+			sendingDiv.textContent = "📷 Image Loading Failed.";
 		}
 	}
-}
+	
+	for (const file of files) {
+		sendFile(file);
+	}
+};
 
 async function chatPageUpdate() {
 	if (currentRoomData) {
@@ -1110,14 +1195,82 @@ async function startMessageListener(messageRef) {
 						dat = CE("span");
 						dat.textContent = message.data;
 					} else if (message.type == "image") {
-						dat = CE("img");
+						dat = CE("div");
+						dat.textContent = "📷 Image Loading...";
+						
 						const imageId = message.meta[0];
 						
 						let tUrl;
-						await loadCachedImage(imageId, message.data)
+						loadCachedImage(imageId, message.data)
 							.then(url => {
-								dat.src = url;
+								dat.textContent = "";
+								
+								const imgCont = CE("img");
+								imgCont.src = url;
+								
 								tUrl = url;
+								
+								imgCont.style = "pointer";
+								
+								imgCont.onclick = (event) => {
+									event.stopPropagation();
+									
+									const overlay = CE("div");
+									let os = overlay.style;
+									os.position = "fixed";
+									os.inset = "0";
+									os.background = "rgba(0,0,0,0.85)";
+									os.display = "flex";
+									os.alignItems = "center";
+									os.justifyContent = "center";
+									os.zindex = "9999";
+									os.cursor = "zoom-out";
+									
+									const bigImg = CE("img");
+									bigImg.src = tUrl;
+									let bs = bigImg.style;
+									bs.maxWidth = "95vw";
+									bs.maxHeight = "95vw";
+									bs.objectFit = "contain";
+									bs.borderRadius = "8px";
+									
+									overlay.appendChild(bigImg);
+									document.body.appendChild(overlay);
+									
+									overlay.onclick = () => {
+										overlay.remove();
+									}
+									
+								}
+								
+								imgCont.style.maxWidth = "380px";
+								imgCont.style.maxHeight = "550px";
+								imgCont.style.width = "auto";
+								imgCont.style.height = "auto";
+								
+								imgCont.style.display = "block";
+								imgCont.style.borderRadius = "8px";
+								imgCont.style.objectFit = "contain";
+								
+								imgCont.onload = () => {
+									console.log("Image Loaded: ", dat.naturalWidth, dat.naturalHeight);
+								}
+								
+								imgCont.onerror = async function() {
+									console.log("Image Failed: ", dat.src);
+									
+									try {
+										const response = await window.fetch(message.data);
+										
+										console.log("FETCH STATUS:", response.status);
+										console.log("FETCH TYPE:", response.headers.get("content-type"));
+										console.log("FETCH URL:", response.url);
+									} catch (err) {
+										console.log("FETCH ERROR:", err);
+									}
+								}
+								
+								dat.replaceWith(imgCont);
 							})
 							.catch (err => {
 								console.error("Image Failed: ", imageId, err);
@@ -1126,65 +1279,6 @@ async function startMessageListener(messageRef) {
 						
 						// dat.src = message.data;
 						
-						dat.style = "pointer";
-						
-						dat.onclick = (event) => {
-							event.stopPropagation();
-							
-							const overlay = CE("div");
-							let os = overlay.style;
-							os.position = "fixed";
-							os.inset = "0";
-							os.background = "rgba(0,0,0,0.85)";
-							os.display = "flex";
-							os.alignItems = "center";
-							os.justifyContent = "center";
-							os.zindex = "9999";
-							os.cursor = "zoom-out";
-							
-							const bigImg = CE("img");
-							bigImg.src = tUrl;
-							let bs = bigImg.style;
-							bs.maxWidth = "95vw";
-							bs.maxHeight = "95vw";
-							bs.objectFit = "contain";
-							bs.borderRadius = "8px";
-							
-							overlay.appendChild(bigImg);
-							document.body.appendChild(overlay);
-							
-							overlay.onclick = () => {
-								overlay.remove();
-							}
-							
-						}
-						
-						dat.style.maxWidth = "380px";
-						dat.style.maxHeight = "550px";
-						dat.style.width = "auto";
-						dat.style.height = "auto";
-						
-						dat.style.display = "block";
-						dat.style.borderRadius = "8px";
-						dat.style.objectFit = "contain";
-						
-						dat.onload = () => {
-							console.log("Image Loaded: ", dat.naturalWidth, dat.naturalHeight);
-						}
-						
-						dat.onerror = async function() {
-							console.log("Image Failed: ", dat.src);
-							
-							try {
-								const response = await window.fetch(message.data);
-								
-								console.log("FETCH STATUS:", response.status);
-								console.log("FETCH TYPE:", response.headers.get("content-type"));
-								console.log("FETCH URL:", response.url);
-							} catch (err) {
-								console.log("FETCH ERROR:", err);
-							}
-						}
 						
 					} else if (message.type == "video") {
 						dat = CE("video");
