@@ -1899,7 +1899,7 @@ window.toggleNotifications = async function() {
 
 }
 
-async function recordingTrigger() {
+window.recordingTrigger = function() {
 	if (CACHE.recording) {
 		dialog("Coming Soon!", true);
 		recordingAction("stop");
@@ -1913,7 +1913,7 @@ async function recordingTrigger() {
 	}
 	
 	return;
-}
+};
 
 const UPLOADER = "https://script.google.com/macros/s/AKfycbyt9tZA8hsJLoLiNWvgF3U-NO7QOHWe_kCS0RvylN_VNWqAZ6sSGUq6AlQVXpQsrFR4/exec";
 
