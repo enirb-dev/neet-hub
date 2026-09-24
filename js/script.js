@@ -12,7 +12,13 @@ import {
 	push,
 	onValue,
 	onChildAdded,
-	remove
+	remove,
+	query,
+	orderByChild,
+	limitToLast,
+	endAt,
+	onChildChanged,
+	startAt
 } from "https://www.gstatic.com/firebasejs/12.1.0/firebase-database.js";
 
 import {
@@ -458,6 +464,8 @@ CACHE.hacker = false;
 let currentMenu = null;
 let MDB = null;
 
+let fileDialogOpen = false;
+
 let focussed = true;
 
 let dragging = false;
@@ -508,7 +516,7 @@ emergencyBubble.addEventListener("pointerup", function(event) {
 });
 
 document.addEventListener("visibilitychange", function() {
-	if (document.hidden && currentUser) {
+	if (document.hidden && currentUser && !fileDialogOpen) {
 		focussed = false;
 		emergency();
 	} else {
@@ -517,7 +525,7 @@ document.addEventListener("visibilitychange", function() {
 });
 
 window.addEventListener("blur", function() {
-	if (currentUser) {
+	if (currentUser && !fileDialogOpen) {
 		emergency();
 	}
 });
@@ -591,7 +599,14 @@ window.addEventListener("devicemotion", function(event) {
 	}
 });
 
+GE("messageFile").addEventListener("pointerdown", function() {
+    fileDialogOpen = true;
+});
 
+window.addEventListener("focus", function() {
+    // give the OS dialog a moment to fully close before re-arming
+    setTimeout(() => { fileDialogOpen = false; }, 300);
+});
 
 // ----------------------------------------------------------------
 // ----------------------------------------------------------------
@@ -908,6 +923,8 @@ window.sendMessage = async function(recursive=false) {
 			await set(messageRef, message);
 			console.log("File Sent:", file.name);
 			
+			sendingDiv.remove();
+			
 			const lastMeta = {
 				senderName: currentUsername,
 				data: "📷 Image",
@@ -1066,271 +1083,807 @@ function updateReplyUI() {
 }
 
 let blockLoad = false;
+let messageListener = null;
+let messageChangedListener = null;
 
-async function startMessageListener(messageRef) {
+let oldestMessageTime = null;
+let newestMessageTime = null;
+let loadingOlderMessages = false;
+let hasMoreMessages = true;
+
+const MESSAGE_CHUNK = 50;
+
+async function renderMessageLegacy(messageId, message) {
+	const div = CE("div");
+	const isSameUser = (message.senderName == lastUser);
+	div.className = "message";
 	
-	stopMessageListener =
-		onValue(
-			messageRef,
-			async function(snap) {
-				if (blockLoad || !currentUser) { return; }
+	div.style.position = "relative";
+	div.style.padding = "6px 45px 12px 10px"
+	div.style.marginTop = isSameUser ? "1px" : "5px";
+	div.style.marginBottom = "1px";
+	
+	if (!Array.isArray(message.seenBy)) {
+		message.seenBy = [message.sender];
+	}
+	
+	if (!message.seenBy.includes(currentUser.uid)) {
+		if (focussed) {
+			message.seenBy.push(currentUser.uid);
+			
+			blockLoad = true;
+			await update(
+				currentRoom + "/messages/" + messageId + "/seenBy",
+				message.seenBy
+			);
+			blockLoad = false;
+		}
+	}
+	
+	let tmp = true;
+	
+	if (currentRoomData) {
+		for (const user of currentRoomData.users) {
+			if (!message.seenBy.includes(user)) {
+				tmp = false;
+				return null;
+			}
+		}
+	} else {
+		tmp = false;
+	}
+	
+	const replyingTo = CE("b");
+	if (message.replyingTo) {
+		replyingTo.textContent = message.replyingTo[1];
+	}
+	
+	const name = CE("b");
+	name.textContent = message.senderName || "Unknown";
+	
+	const brk2 = CE("br");
+	const time = CE("span");
+	let formatted;
+	
+	if (!message.time) { message.time = null; }
+	if (message.time !== null) {
+		formatted = formatDate(message.time * 1000);
+	} else {
+		formatted = "TimeStampError";
+	}
+	
+	if (message.sender == currentUser.uid && tmp && (formatted != "TimeStampError")) {
+		formatted = "✔" + ' ' + formatted;
+	}
+	
+	time.textContent = formatted;
+	time.style.fontSize = "10px";
+	time.style.position = "absolute";
+	time.style.right = "4px";
+	time.style.bottom = "2px";
+	
+	time.style.display = 'inline-block';
+	time.style.transform = "scale(0.8)";
+	time.style.transformOrigin = "bottom right";
+	time.style.whiteSpace = "nowrap";
+	time.style.color = "#888";
+	
+	if (message.replyingTo) {
+		const replyBox = CE("div");
+		
+		replyBox.style.padding = "3px 6px";
+		replyBox.style.marginBottom = "4px";
+		replyBox.style.borderLeft = "3px solid #888";
+		replyBox.style.fontSize = "12px";
+		replyBox.style.opacity = "0.75";
+		replyBox.style.overflow = "hidden";
+		replyBox.style.textOverflow = "ellipsis";
+		replyBox.style.whiteSpace = "nowrap";
+		replyBox.style.background = "#ddd";
+		
+		const replyLabel = CE("b");
+		replyLabel.textContent = "↩ ";
+		
+		const replyText = CE("span");
+		replyText.textContent = message.replyingTo[1];
+		
+		replyBox.appendChild(replyLabel);
+		replyBox.appendChild(replyText);
+		
+		replyBox.onclick = function(event) {
+			event.stopPropagation();
+			
+			const targetId = message.replyingTo[0];
+			
+			const target = GE("messages").querySelector(`[data-message-id="${targetId}"]`);
+			
+			if (target) {
+				target.scrollIntoView({
+					behavior: "smooth",
+					block: "center"
+				});
+			}
+		};
+		
+		div.appendChild(replyBox);
+	}
+	
+	let dat;
+	if (message.type == "text") {
+		dat = CE("span");
+		dat.textContent = message.data;
+	} else if (message.type == "image") {
+		dat = CE("div");
+		dat.textContent = "📷 Image Loading...";
+		
+		dat.style.maxWidth = "380px";
+		dat.style.maxHeight = "550px";
+		dat.style.width = "auto";
+		dat.style.height = "auto";
+		
+		const imageId = message.meta[0];
+		
+		let tUrl;
+		loadCachedImage(imageId, message.data)
+			.then(url => {
+				dat.textContent = "";
 				
-				const cont = GE("messages");
-				cont.innerHTML = "";
+				const imgCont = CE("img");
+				imgCont.src = url;
 				
-				const data = snap.val();
+				tUrl = url;
 				
-				if (!data) {
-					return;
+				imgCont.style = "pointer";
+				
+				imgCont.onclick = (event) => {
+					event.stopPropagation();
+					
+					const overlay = CE("div");
+					let os = overlay.style;
+					os.position = "fixed";
+					os.inset = "0";
+					os.background = "rgba(0,0,0,0.85)";
+					os.display = "flex";
+					os.alignItems = "center";
+					os.justifyContent = "center";
+					os.zindex = "9999";
+					os.cursor = "zoom-out";
+					
+					const bigImg = CE("img");
+					bigImg.src = tUrl;
+					let bs = bigImg.style;
+					bs.maxWidth = "95vw";
+					bs.maxHeight = "95vw";
+					bs.objectFit = "contain";
+					bs.borderRadius = "8px";
+					
+					overlay.appendChild(bigImg);
+					document.body.appendChild(overlay);
+					
+					overlay.onclick = () => {
+						overlay.remove();
+					}
+					
 				}
 				
-				const messages = Object.entries(data);
+				imgCont.style.maxWidth = "380px";
+				imgCont.style.maxHeight = "550px";
+				imgCont.style.width = "auto";
+				imgCont.style.height = "auto";
 				
-				messages.sort(
-					(a, b) => a[1].tstamp - b[1].tstamp
+				imgCont.style.display = "block";
+				imgCont.style.borderRadius = "8px";
+				imgCont.style.objectFit = "contain";
+				
+				imgCont.onload = () => {
+					requestAnimationFrame(() => {
+						cont.scrollTop = cont.scrollHeight;
+					});
+					console.log("Image Loaded: ", dat.naturalWidth, dat.naturalHeight);
+				}
+				
+				imgCont.onerror = async function() {
+					console.log("Image Failed: ", dat.src);
+					
+					try {
+						const response = await window.fetch(message.data);
+						
+						console.log("FETCH STATUS:", response.status);
+						console.log("FETCH TYPE:", response.headers.get("content-type"));
+						console.log("FETCH URL:", response.url);
+					} catch (err) {
+						console.log("FETCH ERROR:", err);
+					}
+				}
+				
+				dat.replaceWith(imgCont);
+			})
+			.catch (err => {
+				console.error("Image Failed: ", imageId, err);
+				dat.alt = "Image Failed";
+			});
+		
+		// dat.src = message.data;
+		
+		
+	} else if (message.type == "video") {
+		dat = CE("video");
+		dat.src = message.data;
+		dat.controls = true;
+	} else {
+		return 0;
+	}
+	
+	div.dataset.messageId = messageId;
+	
+	setupMessageMenu(div, messageId, message);
+	
+	if (lastUser != message.senderName) {
+		div.appendChild(name);
+		const brkName = CE("br");
+		div.appendChild(brkName);
+	}
+	
+	div.appendChild(dat);
+	div.appendChild(time);
+	
+	div.style.overflow = 'hidden';
+	
+	return div;
+}
+
+GE("messages").addEventListener(
+	"scroll",
+	function() {
+
+		if (this.scrollTop <= 100) {
+			loadOlderMessages();
+		}
+	}
+);
+
+async function loadOlderMessages() {
+	if (
+		loadingOlderMessages ||
+		!hasMoreMessages ||
+		!currentRoom
+	) {
+		return;
+	}
+	
+	if (oldestMessageTime === null) {
+		return;
+	}
+	
+	loadingOlderMessages = true;
+	
+	const cont = GE("messages");
+	
+	const oldHeight = cont.scrollHeight;
+	const oldTop = cont.scrollTop;
+	
+	const messageRef =
+		ref(
+			db,
+			currentRoom + "/messages"
+		);
+	
+	const olderQuery = query(
+		messageRef,
+		orderByChild("tstamp"),
+		endAt(oldestMessageTime - 1),
+		limitToLast(MESSAGE_CHUNK)
+	);
+	
+	try {
+		const snap = await get(olderQuery);
+		
+		if (!snap.exists()) {
+			hasMoreMessages = false;
+			return;
+		}
+		
+		const data = snap.val();
+		const messages = Object.entries(data);
+		
+		messages.sort(
+			(a, b) => a[1].tstamp - b[1].tstamp
+		);
+		
+		if (messages.length === 0) {
+			hasMoreMessages = false;
+			return;
+		}
+		
+		oldestMessageTime = messages[0][1].tstamp;
+		
+		for (let i = messages.length - 1; i >= 0; i--) {
+			const [messageId, message] = messages[i];
+			
+			if (
+				cont.querySelector(
+					`[data-message-id="${messageId}"]`
+				)
+			) {
+				continue;
+			}
+			
+			await renderMessage(
+				messageId,
+				message,
+				true
+			);
+		}
+		
+		const newHeight = cont.scrollHeight;
+		cont.scrollTop =
+			oldTop +
+			(newHeight - oldHeight);
+	
+	} finally {
+		loadingOlderMessages = false;
+	}
+}
+
+function updateSenderNameVisibility(div) {
+	const nameEl = div.querySelector(".sender-name");
+	if (!nameEl) return;
+
+	const prev = div.previousElementSibling;
+	const shouldShow = !prev || prev.dataset.senderName !== div.dataset.senderName;
+
+	nameEl.style.display = shouldShow ? "block" : "none";
+	div.style.marginTop = shouldShow ? "5px" : "1px";
+}
+
+let renderMessage = null;
+async function startMessageListener(messageRef) {
+	if (stopMessageListener) {
+		stopMessageListener();
+		stopMessageListener = null;
+	}
+	
+	if (messageChangedListener) {
+		messageChangedListener();
+		messageChangedListener = null;
+	}
+	
+	const cont = GE("messages");
+	
+	cont.innerHTML = "";
+	
+	oldestMessageTime = null;
+	newestMessageTime = null;
+	loadingOlderMessages = false;
+	hasMoreMessages = true;
+	
+	renderMessage = async function(messageId, message, prepend=false) {
+		if (!message) {
+			return;
+		}
+		
+		if (message.deleted && !CACHE.hacker) {
+			return;
+		}
+		
+		if (cont.querySelector(`[data-message-id="${messageId}"]`)) {
+			return;
+		}
+		
+		const div = CE("div");
+		
+		let lastUser = null;
+		
+		if (cont.children.length > 0) {
+			const referenceElement = prepend
+				? cont.children[0]
+				: cont.children[cont.children.length - 1];
+			
+			lastUser = referenceElement.dataset.senderName || null;
+		}
+		
+		const isSameUser = message.senderName == lastUser;
+		
+		div.className = "message";
+		
+		div.style.position = "relative";
+		div.style.padding = "6px 45px 12px 10px";
+		div.style.marginTop = isSameUser ? "1px" : "5px";
+		div.style.marginBottom = "1px";
+		
+		if (!Array.isArray(message.seenBy)) {
+			message.seenBy = [message.sender];
+		}
+		
+		if (!message.seenBy.includes(currentUser.uid)) {
+			if (focussed) {
+				message.seenBy.push(currentUser.uid);
+				blockLoad = true;
+				
+				await update(
+					currentRoom +
+					"/messages/" +
+					messageId +
+					"/seenBy",
+					message.seenBy
 				);
+
+				blockLoad = false;
+			}
+		}
+		
+		let tmp = true;
+		if (currentRoomData) {
+			for (const user of currentRoomData.users) {
+				if (!message.seenBy.includes(user)) {
+					tmp = false;
+					break;
+				}
+			}
+		
+		} else {
+			tmp = false;
+		}
+		
+		const name = CE("b");
+		name.className = "sender-name";
+		name.textContent = message.senderName || "Unknown";
+		name.style.display = "block";
+		name.style.marginBotton = "10px";
+		
+		div.dataset.messageId = messageId;
+		div.dataset.senderName = message.senderName || "";
+		
+		const time = CE("span");
+		
+		let formatted;
+		
+		if (!message.time) {
+			message.time = null;
+		}
+		
+		if (message.time !== null) {
+			formatted = formatDate(message.time * 1000);
+		} else {
+			formatted = "TimeStampError";
+		}
+		
+		if (
+			message.sender == currentUser.uid &&
+			tmp &&
+			formatted != "TimeStampError"
+		) {
+			formatted = "✔ " + formatted;
+		}
+		
+		time.textContent = formatted;
+		
+		time.style.fontSize = "10px";
+		time.style.position = "absolute";
+		time.style.right = "4px";
+		time.style.bottom = "2px";
+		
+		time.style.display = "inline-block";
+		time.style.transform = "scale(0.8)";
+		time.style.transformOrigin = "bottom right";
+		time.style.whiteSpace = "nowrap";
+		time.style.color = "#888";
+		
+		if (message.replyingTo) {
+			const replyBox = CE("div");
+			
+			replyBox.style.padding = "3px 6px";
+			replyBox.style.marginBottom = "4px";
+			replyBox.style.borderLeft = "3px solid #888";
+			replyBox.style.fontSize = "12px";
+			replyBox.style.opacity = "0.75";
+			replyBox.style.overflow = "hidden";
+			replyBox.style.textOverflow = "ellipsis";
+			replyBox.style.whiteSpace = "nowrap";
+			replyBox.style.background = "#ddd";
+			
+			const replyLabel = CE("b");
+			replyLabel.textContent = "↩ ";
+			
+			const replyText = CE("span");
+			replyText.textContent = message.replyingTo[1];
+			
+			replyBox.appendChild(replyLabel);
+			replyBox.appendChild(replyText);
+			
+			replyBox.onclick = function(event) {
+				event.stopPropagation();
+				const targetId = message.replyingTo[0];
+				const target =
+					GE("messages")
+					.querySelector(
+						`[data-message-id="${targetId}"]`
+					);
 				
-				let lastUser = null;
-				for (const [messageId, message] of messages) {
-					if (message.deleted && !CACHE.hacker) { continue; }
+				if (target) {
+					target.scrollIntoView({
+						behavior: "smooth",
+						block: "center"
+					});
+				}
+			};
+			
+			div.appendChild(replyBox);
+		}
+		
+		let dat;
+		
+		if (message.type == "text") {
+			dat = CE("span");
+			dat.textContent = message.data;
+		} else if (message.type == "image") {
+			dat = CE("div");
+			dat.textContent = "📷 Image Loading...";
+			
+			const imageId = message.meta[0];
+			
+			let tUrl;
+			
+			loadCachedImage(imageId, message.data)
+				.then(url => {
+					dat.textContent = "";
 					
-					const div = CE("div");
-					const isSameUser = (message.senderName == lastUser);
-					div.className = "message";
+					const imgCont = CE("img");
 					
-					div.style.position = "relative";
-					div.style.padding = "6px 45px 12px 10px"
-					div.style.marginTop = isSameUser ? "1px" : "5px";
-					div.style.marginBottom = "1px";
+					imgCont.src = url;
+					tUrl = url;
+					imgCont.style.cursor = "pointer";
 					
-					if (!Array.isArray(message.seenBy)) {
-						message.seenBy = [message.sender];
-					}
+					imgCont.onclick = function(event) {
+						event.stopPropagation();
+						
+						const overlay = CE("div");
+						let os = overlay.style;
+						
+						os.position = "fixed";
+						os.inset = "0";
+						os.background = "rgba(0,0,0,0.85)";
+						os.display = "flex";
+						os.alignItems = "center";
+						os.justifyContent = "center";
+						os.zIndex = "9999";
+						os.cursor = "zoom-out";
+						
+						const bigImg = CE("img");
+						bigImg.src = tUrl;
+						
+						let bs = bigImg.style;
+						
+						bs.maxWidth = "95vw";
+						bs.maxHeight = "95vw";
+						bs.objectFit = "contain";
+						bs.borderRadius = "8px";
+						
+						overlay.appendChild(bigImg);
+						
+						document.body.appendChild(overlay);
+						
+						overlay.onclick = () => {
+							overlay.remove();
+						};
+					};
 					
-					if (!message.seenBy.includes(currentUser.uid)) {
-						if (focussed) {
-							message.seenBy.push(currentUser.uid);
-							
-							blockLoad = true;
-							await update(
-								currentRoom + "/messages/" + messageId + "/seenBy",
-								message.seenBy
-							);
-							blockLoad = false;
-						}
-					}
+					imgCont.style.maxWidth = "380px";
+					imgCont.style.maxHeight = "550px";
+					imgCont.style.width = "auto";
+					imgCont.style.height = "auto";
 					
-					let tmp = true;
+					imgCont.style.display = "block";
+					imgCont.style.borderRadius = "8px";
+					imgCont.style.objectFit = "contain";
 					
+					imgCont.onload = () => {
+						requestAnimationFrame(() => {
+							cont.scrollTop = cont.scrollHeight;
+						});
+						
+						console.log(
+							"Image Loaded:",
+							imgCont.naturalWidth,
+							imgCont.naturalHeight
+						);
+					};
+					
+					imgCont.onerror = function() {
+						console.log(
+							"Image Failed:",
+							imgCont.src
+						);
+					};
+					dat.replaceWith(imgCont);
+				})
+				.catch(err => {
+					console.error(
+						"Image Failed:",
+						imageId,
+						err
+					);
+					dat.textContent = "📷 Image Failed";
+				});
+		} else if (message.type == "video") {
+			dat = CE("video");
+			dat.src = message.data;
+			dat.controls = true;
+		} else {
+			return;
+		}
+		
+		div.dataset.messageId = messageId;
+		div.dataset.senderName = message.senderName || "";
+		
+		setupMessageMenu(
+			div,
+			messageId,
+			message
+		);
+		
+		div.appendChild(name);
+		
+		
+		div.appendChild(dat);
+		div.appendChild(time);
+		
+		div.style.overflow = "hidden";
+		
+		if (prepend) {
+			cont.prepend(div);
+		} else {
+			cont.appendChild(div);
+		}
+		
+		updateSenderNameVisibility(div);
+
+		if (prepend && div.nextElementSibling) {
+			updateSenderNameVisibility(div.nextElementSibling);
+		}
+	};
+	
+	const initialQuery = query(
+		messageRef,
+		orderByChild("tstamp"),
+		limitToLast(MESSAGE_CHUNK)
+	);
+	
+	const initialSnap = await get(initialQuery);
+	console.log("CurrentRoom: ", currentRoom);
+	
+	
+	if (initialSnap.exists()) {
+		const data = initialSnap.val();
+		const messages = Object.entries(data);
+		
+		messages.sort(
+			(a, b) => a[1].tstamp - b[1].tstamp
+		);
+		
+		if (messages.length > 0) {
+			oldestMessageTime = messages[0][1].tstamp;
+			newestMessageTime = messages[messages.length - 1][1].tstamp;
+		}
+		
+		for (const [messageId, message] of messages) {
+			await renderMessage(
+				messageId,
+				message
+			);
+		}
+	}
+	
+	cont.scrollTop = cont.scrollHeight;
+	
+	const newMessageQuery = query(
+		messageRef,
+		orderByChild("tstamp"),
+		startAt(newestMessageTime + 1)
+	);
+	
+	messageListener = onChildAdded(
+		newMessageQuery,
+		async function(snapshot) {
+			const message = snapshot.val();
+			
+			if (!message) {
+				return;
+			}
+			
+			const exists =
+				cont.querySelector(
+					`[data-message-id="${snapshot.key}"]`
+				);
+			
+			if (exists) {
+				return;
+			}
+			
+			await renderMessage(
+				snapshot.key,
+				message
+			);
+			
+			cont.scrollTop = cont.scrollHeight;
+		}
+	);
+	
+	messageChangedListener = onChildChanged(
+		messageRef,
+		async function(snapshot) {
+			const message = snapshot.val();
+
+			const oldDiv =
+				cont.querySelector(
+					`[data-message-id="${snapshot.key}"]`
+				);
+
+			if (
+				message.deleted &&
+				!CACHE.hacker
+			) {
+				if (oldDiv) {
+					oldDiv.remove();
+				}
+				return;
+			}
+
+			if (oldDiv) {
+				const time =
+					oldDiv.querySelector(".message-time");
+
+				if (time) {
+					let allSeen = true;
+
 					if (currentRoomData) {
 						for (const user of currentRoomData.users) {
-							if (!message.seenBy.includes(user)) {
-								tmp = false;
+							if (!message.seenBy?.includes(user)) {
+								allSeen = false;
 								break;
 							}
 						}
 					} else {
-						tmp = false;
+						allSeen = false;
 					}
-					
-					const replyingTo = CE("b");
-					if (message.replyingTo) {
-						replyingTo.textContent = message.replyingTo[1];
+
+					let formatted =
+						message.time
+							? formatDate(message.time * 1000)
+							: "TimeStampError";
+
+					if (
+						message.sender == currentUser.uid &&
+						allSeen &&
+						formatted != "TimeStampError"
+					) {
+						formatted = "✔ " + formatted;
 					}
-					
-					const name = CE("b");
-					name.textContent = message.senderName || "Unknown";
-					
-					const brk2 = CE("br");
-					const time = CE("span");
-					let formatted;
-					
-					if (!message.time) { message.time = null; }
-					if (message.time !== null) {
-						formatted = formatDate(message.time * 1000);
-					} else {
-						formatted = "TimeStampError";
-					}
-					
-					if (message.sender == currentUser.uid && tmp && (formatted != "TimeStampError")) {
-						formatted = "✔" + ' ' + formatted;
-					}
-					
+
 					time.textContent = formatted;
-					time.style.fontSize = "10px";
-					time.style.position = "absolute";
-					time.style.right = "4px";
-					time.style.bottom = "2px";
-					
-					time.style.display = 'inline-block';
-					time.style.transform = "scale(0.8)";
-					time.style.transformOrigin = "bottom right";
-					time.style.whiteSpace = "nowrap";
-					time.style.color = "#888";
-					
-					if (message.replyingTo) {
-						const replyBox = CE("div");
-						
-						replyBox.style.padding = "3px 6px";
-						replyBox.style.marginBottom = "4px";
-						replyBox.style.borderLeft = "3px solid #888";
-						replyBox.style.fontSize = "12px";
-						replyBox.style.opacity = "0.75";
-						replyBox.style.overflow = "hidden";
-						replyBox.style.textOverflow = "ellipsis";
-						replyBox.style.whiteSpace = "nowrap";
-						replyBox.style.background = "#ddd";
-						
-						const replyLabel = CE("b");
-						replyLabel.textContent = "↩ ";
-						
-						const replyText = CE("span");
-						replyText.textContent = message.replyingTo[1];
-						
-						replyBox.appendChild(replyLabel);
-						replyBox.appendChild(replyText);
-						
-						replyBox.onclick = function(event) {
-							event.stopPropagation();
-							
-							const targetId = message.replyingTo[0];
-							
-							const target = GE("messages").querySelector(`[data-message-id="${targetId}"]`);
-							
-							if (target) {
-								target.scrollIntoView({
-									behavior: "smooth",
-									block: "center"
-								});
-							}
-						};
-						
-						div.appendChild(replyBox);
-					}
-					
-					let dat;
-					if (message.type == "text") {
-						dat = CE("span");
-						dat.textContent = message.data;
-					} else if (message.type == "image") {
-						dat = CE("div");
-						dat.textContent = "📷 Image Loading...";
-						
-						const imageId = message.meta[0];
-						
-						let tUrl;
-						loadCachedImage(imageId, message.data)
-							.then(url => {
-								dat.textContent = "";
-								
-								const imgCont = CE("img");
-								imgCont.src = url;
-								
-								tUrl = url;
-								
-								imgCont.style = "pointer";
-								
-								imgCont.onclick = (event) => {
-									event.stopPropagation();
-									
-									const overlay = CE("div");
-									let os = overlay.style;
-									os.position = "fixed";
-									os.inset = "0";
-									os.background = "rgba(0,0,0,0.85)";
-									os.display = "flex";
-									os.alignItems = "center";
-									os.justifyContent = "center";
-									os.zindex = "9999";
-									os.cursor = "zoom-out";
-									
-									const bigImg = CE("img");
-									bigImg.src = tUrl;
-									let bs = bigImg.style;
-									bs.maxWidth = "95vw";
-									bs.maxHeight = "95vw";
-									bs.objectFit = "contain";
-									bs.borderRadius = "8px";
-									
-									overlay.appendChild(bigImg);
-									document.body.appendChild(overlay);
-									
-									overlay.onclick = () => {
-										overlay.remove();
-									}
-									
-								}
-								
-								imgCont.style.maxWidth = "380px";
-								imgCont.style.maxHeight = "550px";
-								imgCont.style.width = "auto";
-								imgCont.style.height = "auto";
-								
-								imgCont.style.display = "block";
-								imgCont.style.borderRadius = "8px";
-								imgCont.style.objectFit = "contain";
-								
-								imgCont.onload = () => {
-									console.log("Image Loaded: ", dat.naturalWidth, dat.naturalHeight);
-								}
-								
-								imgCont.onerror = async function() {
-									console.log("Image Failed: ", dat.src);
-									
-									try {
-										const response = await window.fetch(message.data);
-										
-										console.log("FETCH STATUS:", response.status);
-										console.log("FETCH TYPE:", response.headers.get("content-type"));
-										console.log("FETCH URL:", response.url);
-									} catch (err) {
-										console.log("FETCH ERROR:", err);
-									}
-								}
-								
-								dat.replaceWith(imgCont);
-								cont.scrollTop = cont.scrollHeight;
-							})
-							.catch (err => {
-								console.error("Image Failed: ", imageId, err);
-								dat.alt = "Image Failed";
-							});
-						
-						// dat.src = message.data;
-						
-						
-					} else if (message.type == "video") {
-						dat = CE("video");
-						dat.src = message.data;
-						dat.controls = true;
-					} else {
-						continue;
-					}
-					
-					div.dataset.messageId = messageId;
-					
-					setupMessageMenu(div, messageId, message);
-					
-					if (lastUser != message.senderName) {
-						div.appendChild(name);
-						const brkName = CE("br");
-						div.appendChild(brkName);
-					}
-					
-					div.appendChild(dat);
-					div.appendChild(time);
-					
-					div.style.overflow = 'hidden';
-					
-					lastUser = message.senderName;
-					cont.appendChild(div);
 				}
-				
-				cont.scrollTop = cont.scrollHeight;
-				updateReplyUI();
-				
+
+				return;
 			}
-		);
+
+			await renderMessage(
+				snapshot.key,
+				message
+			);
+		}
+	);
+	
+	stopMessageListener = function() {
+		if (messageListener) {
+			messageListener();
+			messageListener = null;
+		}
+		
+		if (messageChangedListener) {
+			messageChangedListener();
+			messageChangedListener = null;
+		}
+	};
 }
 
 const delay = (ms) => new Promise(resolve => setTimeout(resolve, ms));
