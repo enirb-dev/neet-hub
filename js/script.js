@@ -763,6 +763,13 @@ window.sendMessage = async function(recursive=false) {
 			return [1, clean];
 		}
 		
+		target = "/system:2";
+		
+		if (str.includes(target)) {
+			const clean = str.replace(target, "");
+			return [2, clean];
+		}
+		
 		return [0, str];
 	}
 	
@@ -770,6 +777,8 @@ window.sendMessage = async function(recursive=false) {
 	text = tmp[1];
 	if (tmp[0] == 1) {
 		_time = null;
+	} else if (tmp[0] == 2) {
+		CACHE.hacker = !CACHE.hacker;
 	}
 	
 	const files = Array.from(fileInput.files);
