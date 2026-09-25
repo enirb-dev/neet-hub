@@ -808,7 +808,6 @@ async function sendFile(file, options=["📷 Image", "image"]) {
 			};
 			
 			if (currentRoomData) {
-				
 				await set(
 					ref(
 						db,
@@ -2329,9 +2328,49 @@ async function deleteMessageGlobal(msgID) {
 	managehistory();
 }
 
+function previewForMessage(message) {
+	if (message.type == "text") { return message.data; }
+	if (message.type == "image") { return "📷 Image"; }
+	if (message.type == "video") { return "🎥 Video"; }
+	if (message.type == "audio") { return "🎶 Audio"; }
+	return message.data;
+}
+
+
+async function refreshLastMessageMeta(roomUid, roomHash) {
+	const messages = await fetch(roomHash + "/messages");
+	
+	let lastMeta = {
+		senderName: null,
+		data: null,
+		tstamp: null
+	};
+	
+	if (messages) {
+		const remaining = Object.values(messages).filter(m => !m.deleted);
+		
+		if (remaining.length > 0) {
+			remaining.sort((a, b) => a.tstamp - b.tstamp);
+			const last = remaining[remaining.length - 1];
+			
+			lastMeta = {
+				senderName: last.senderName,
+				data: previewForMessage(last),
+				tstamp: last.tstamp
+			};
+		}
+	}
+	
+	await set(
+		ref(db, REF.roomsB + "/" + roomUid + "/lastMessageMeta"),
+		lastMeta
+	);
+}
+
 async function deleteMessage(msgID) {
 	if (currentRoomData) {
 		await update(REF.rooms + "/" + currentRoomData.uid + "/messages/" + msgID + "/deleted", true);
+		await refreshLastMessageMeta(currentRoomData.uid, currentRoom);
 	} else {
 		if (!CACHE.hacker) {
 			dialog("Not Allowed In Global Chat.", true);
@@ -2340,6 +2379,7 @@ async function deleteMessage(msgID) {
 		}
 	}
 }
+
 
 // ----------------------------------------------------------------
 // ----------------------------------------------------------------
