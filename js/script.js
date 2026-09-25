@@ -289,13 +289,13 @@ function createMenu(x, y, options) {	// options = list of (text, action)
 
 async function initMediaDB() {
 	return new Promise((resolve, reject) => {
-		const request = indexedDB.open("NeetHubDB", 1);
+		const request = indexedDB.open("NeetHubDB", 2);
 		
 		request.onupgradeneeded = (event) => {
 			const db = event.target.result;
 			
-			if (!db.objectStoreNames.contains("images")) {
-				db.createObjectStore("images", {keyPath: "id"});
+			if (!db.objectStoreNames.contains("files")) {
+				db.createObjectStore("files", {keyPath: "id"});
 			}
 		};
 		
@@ -310,10 +310,10 @@ async function initMediaDB() {
 	});
 }
 
-function saveFile(id, blob, type="images") {
+function saveFile(id, blob) {
 	return new Promise((resolve, reject) => {
-		const trans = MDB.transaction(type, "readwrite");
-		const store = trans.objectStore(type);
+		const trans = MDB.transaction("files", "readwrite");
+		const store = trans.objectStore("files");
 		
 		const req = store.put({
 			id: id,
@@ -326,10 +326,10 @@ function saveFile(id, blob, type="images") {
 	});
 }
 
-function getFile(id, type="images") {
+function getFile(id) {
 	return new Promise((resolve, reject) => {
-		const trans = MDB.transaction(type, "readonly");
-		const store = trans.objectStore(type);
+		const trans = MDB.transaction("files", "readonly");
+		const store = trans.objectStore("files");
 		
 		const req = store.get(id);
 		
@@ -338,10 +338,10 @@ function getFile(id, type="images") {
 	});
 }
 
-function deleteFile(id, type="images") {
+function deleteFile(id) {
 	return new Promise((resolve, reject) => {
-		const trans = MDB.transaction(type, "readwrite");
-		const store = trans.objectStore(type);
+		const trans = MDB.transaction("files", "readwrite");
+		const store = trans.objectStore("files");
 		
 		const req = store.delete(id);
 		
@@ -350,10 +350,10 @@ function deleteFile(id, type="images") {
 	});
 }
 
-function clearFiles(type="images") {
+function clearFiles() {
 	return new Promise((resolve, reject) => {
-		const trans = MDB.transaction(type, "readwrite");
-		const store = trans.objectStore(type);
+		const trans = MDB.transaction("files", "readwrite");
+		const store = trans.objectStore("files");
 		
 		const req = store.clear();
 		
@@ -686,7 +686,6 @@ window.sendMessage = async function(recursive=false) {
 		};
 		
 		if (currentRoomData) {
-			
 			await set(
 				ref(
 					db,
@@ -736,7 +735,7 @@ window.sendMessage = async function(recursive=false) {
 			{ type: CACHE.recorded.type }
 		);
 		
-		sendFile(namedFile, ["🎶 Audio", "audio"]);
+		sendFile(namedFile, ["🎶 Audio", "audio"], replyingTo);
 		CACHE.recorded = null;
 		
 		updateRecordingUI();
@@ -748,14 +747,24 @@ window.sendMessage = async function(recursive=false) {
 	CACHE.replying = null;
 	updateReplyUI();
 	
-		
+	
 	for (const file of files) {
-		sendFile(file);
+		let options;
+		if (file.type.startsWith("image")) {
+			options = ["📷 Image", "image"];
+		} else if (file.type.startsWith("video")) {
+			options = ["📽 Video", "video"];
+		} if (file.type.startsWith("audio")) {
+			options = ["🎶 Audio", "audio"];
+		} else {
+			options = ["📁 File", "file"];
+		}
+		sendFile(file, options, replyingTo);
 	}
 };
 
 
-async function sendFile(file, options=["📷 Image", "image"]) {
+async function sendFile(file, options=["📷 Image", "image"], replyingTo=null) {
 		const cont = GE("messages");
 		
 		const sendingDiv = CE("div");
@@ -787,8 +796,8 @@ async function sendFile(file, options=["📷 Image", "image"]) {
 				tstamp: Date.now(),
 				time: Math.floor(Date.now() / 1000),
 				seenBy: [currentUser.uid],
-				replyingTo: CACHE.replying,
-				meta: [fId]
+				replyingTo: replyingTo,
+				meta: [fId, file.name]
 			};
 			
 			
@@ -1351,9 +1360,105 @@ async function startMessageListener(messageRef) {
 					dat.textContent = "📷 Image Failed";
 				});
 		} else if (message.type == "video") {
-			dat = CE("video");
-			dat.src = message.data;
-			dat.controls = true;
+			dat = CE("div");
+			dat.textContent = "📽 Video Loading...";
+			
+			const videoId = message.meta[0];
+			
+			let tUrl;
+			
+			loadCachedFile(videoId, message.data)
+				.then(url => {
+					dat.textContent = "";
+					
+					const vidCont = CE("video");
+					
+					vidCont.src = url;
+					tUrl = url;
+					vidCont.style.cursor = "pointer";
+					//vidCont.controls = true;
+					
+					vidCont.onclick = function(event) {
+						event.stopPropagation();
+						
+						if (!vidCont.paused) vidCont.pause();
+						
+						const overlay = CE("div");
+						let os = overlay.style;
+						
+						os.position = "fixed";
+						os.inset = "0";
+						os.background = "rgba(0,0,0,0.85)";
+						os.display = "flex";
+						os.alignItems = "center";
+						os.justifyContent = "center";
+						os.zIndex = "9999";
+						os.cursor = "zoom-out";
+						
+						const bigVid = CE("video");
+						bigVid.src = tUrl;
+						
+						let bs = bigVid.style;
+						
+						bs.maxWidth = "95vw";
+						bs.maxHeight = "95vw";
+						bs.objectFit = "contain";
+						bs.borderRadius = "8px";
+						
+						bigVid.controls = true;
+						bigVid.autoplay = true;
+						
+						bigVid.onclick = (e) => {
+							e.stopPropagation();
+						};
+						
+						overlay.appendChild(bigVid);
+						
+						document.body.appendChild(overlay);
+						
+						overlay.onclick = () => {
+							bigVid.pause();
+							overlay.remove();
+						};
+					};
+					
+					vidCont.style.maxWidth = "380px";
+					vidCont.style.maxHeight = "550px";
+					vidCont.style.width = "auto";
+					vidCont.style.height = "auto";
+					
+					vidCont.style.display = "block";
+					vidCont.style.borderRadius = "8px";
+					vidCont.style.objectFit = "contain";
+					
+					vidCont.onloadmetadata = () => {
+						requestAnimationFrame(() => {
+							cont.scrollTop = cont.scrollHeight;
+						});
+						
+						console.log(
+							"Video Loaded:",
+							vidCont.naturalWidth,
+							vidCont.naturalHeight
+						);
+					};
+					
+					vidCont.onerror = function() {
+						console.log(
+							"Video Failed:",
+							vidCont.src
+						);
+					};
+					dat.replaceWith(vidCont);
+				})
+				.catch(err => {
+					console.error(
+						"Video Failed:",
+						videoId,
+						err
+					);
+					dat.textContent = "📽 Video Failed";
+				});
 		} else if (message.type == "audio") {
 			dat = CE("div");
 			dat.textContent = "🎶 Audio Loading...";
@@ -1373,7 +1478,7 @@ async function startMessageListener(messageRef) {
 					
 					audioCont.controls = true;
 					
-					audioCont.onload = () => {
+					audioCont.onloadmetadata = () => {
 						requestAnimationFrame(() => {
 							cont.scrollTop = cont.scrollHeight;
 						});
@@ -1396,7 +1501,61 @@ async function startMessageListener(messageRef) {
 					dat.textContent = "🎶 Audio Failed";
 				});
 		} else {
-			return;
+			dat = CE("div");
+			dat.textContent = "📁 File Loading...";
+			
+			const fileId = message.meta[0];
+			const fileName = message.meta[1] || "File";
+			
+			let tUrl;
+			
+			loadCachedFile(fileId, message.data)
+				.then(url => {
+					dat.textContent = "";
+					
+					const fileCont = CE("div");
+					fileCont.style.display = "flex";
+					fileCont.style.alignItems = "center";
+					fileCont.style.gap = "8px";
+					
+					const label = CE("span");
+					label.textContent = "📁 " + fileName;
+					label.style.overflow = "hidden";
+					label.style.textOverflow = "ellipsis";
+					label.style.whiteSpace = "nowrap";
+					label.style.maxWidth = "220px";
+					
+					fileCont.src = url;
+					tUrl = url;
+					
+					const saveBut = CE("a");
+					
+					saveBut.textContent = "Save";
+					saveBut.className = "B";
+					
+					saveBut.href = url;
+					saveBut.download = fileName;
+					
+					saveBut.style.flexShrink = "0";
+					saveBut.style.textDecoration = "none";
+					
+					fileCont.appendChild(label);
+					fileCont.appendChild(saveBut);
+					
+					dat.replaceWith(fileCont);
+					
+					requestAnimationFrame(() => {
+						cont.scrollTop = cont.scrollHeight;
+					});
+				})
+				.catch(err => {
+					console.error(
+						"File Failed:",
+						fileId,
+						err
+					);
+					dat.textContent = "📁 File Failed";
+				});
 		}
 		
 		div.dataset.messageId = messageId;
@@ -2333,6 +2492,7 @@ function previewForMessage(message) {
 	if (message.type == "image") { return "📷 Image"; }
 	if (message.type == "video") { return "🎥 Video"; }
 	if (message.type == "audio") { return "🎶 Audio"; }
+	if (message.type == "file") { return "📁 " + (message.meta?.[1] || "File"); }
 	return message.data;
 }
 
