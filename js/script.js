@@ -1332,9 +1332,9 @@ async function startMessageListener(messageRef) {
 					imgCont.style.objectFit = "contain";
 					
 					imgCont.onload = () => {
-						requestAnimationFrame(() => {
-							cont.scrollTop = cont.scrollHeight;
-						});
+						// requestAnimationFrame(() => {
+							// cont.scrollTop = cont.scrollHeight;
+						// });
 						
 						console.log(
 							"Image Loaded:",
@@ -1432,9 +1432,9 @@ async function startMessageListener(messageRef) {
 					vidCont.style.objectFit = "contain";
 					
 					vidCont.onloadmetadata = () => {
-						requestAnimationFrame(() => {
-							cont.scrollTop = cont.scrollHeight;
-						});
+						// requestAnimationFrame(() => {
+							// cont.scrollTop = cont.scrollHeight;
+						// });
 						
 						console.log(
 							"Video Loaded:",
@@ -1479,9 +1479,9 @@ async function startMessageListener(messageRef) {
 					audioCont.controls = true;
 					
 					audioCont.onloadmetadata = () => {
-						requestAnimationFrame(() => {
-							cont.scrollTop = cont.scrollHeight;
-						});
+						// requestAnimationFrame(() => {
+							// cont.scrollTop = cont.scrollHeight;
+						// });
 					};
 					
 					audioCont.onerror = function() {
@@ -1544,9 +1544,9 @@ async function startMessageListener(messageRef) {
 					
 					dat.replaceWith(fileCont);
 					
-					requestAnimationFrame(() => {
-						cont.scrollTop = cont.scrollHeight;
-					});
+					// requestAnimationFrame(() => {
+						// cont.scrollTop = cont.scrollHeight;
+					// });
 				})
 				.catch(err => {
 					console.error(
