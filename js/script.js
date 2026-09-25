@@ -477,6 +477,7 @@ let moved = false;
 let offsetX = 0;
 let offsetY = 0;
 
+
 emergencyBubble.addEventListener("pointerdown", function(event) {
 	dragging = true;
 	moved = false;
@@ -1075,6 +1076,18 @@ function updateSenderNameVisibility(div) {
 
 	nameEl.style.display = shouldShow ? "block" : "none";
 	div.style.marginTop = shouldShow ? "5px" : "1px";
+}
+
+window.scrollToBottomF = function() {
+	const cont = GE("messages");
+	if (!cont) return;
+	
+	requestAnimationFrame(() => {
+		cont.scrollTo({
+			top: cont.scrollHeight,
+			behavior: "smooth"
+		});
+	});
 }
 
 let renderMessage = null;
@@ -1974,7 +1987,6 @@ async function recordingAction(action) {
 	} else if (action == "get") {
 		return CACHE.recorded;
 	}
-	
 }
 
 window.recordingTrigger = async function() {

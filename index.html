@@ -55,21 +55,21 @@
 	
 	<div id="appWorking">
 		<div id="chatPage" class="pageStyleB">
+			<p>
+				Logged in as:
+				<b id="currentUser"></b>
+				<button onclick="logout()"> Logout </button>
+			</p>
 			<h1 id="roomTitle"> Neet Hub Chat </h1>
 			<b>
 			<div id="onlineHasher"></div>
 			<span class="onlineDot" id="onlineDot"></span>
 			</b>
-			<p>
-				Logged in as:
-				<b id="currentUser"></b>
-			</p>
-			
-			<button onclick="logout()"> Logout </button>
 			
 			<hr>
 			
 			<div id="messages"></div>
+			<button id="scrollToBottom" onclick="scrollToBottomF()" class="fixedButton">🔻</button>
 			
 			<div id="replyingBar" style="display:none;"></div>
 			<input
@@ -81,11 +81,8 @@
 			<button onclick="sendMessage()"> Send </button>
 			<button onclick="callUser()"> Call </button>
 			
-			<button onclick="recordingTrigger()"> 🎙 </button>
-			
-			<br>
-			
-			<input type="file" id="messageFile" accept="image/*, video/*" multiple>
+			<button onclick="recordingTrigger()" style="padding: 3px 8px; font-size: 30px"> 🎙 </button>
+			<input type="file" id="messageFile"  multiple>
 			
 			<hr>
 			<button onclick="showRooms()"> Private Chats </button>
