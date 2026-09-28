@@ -119,10 +119,12 @@ async function fetch(key) {
 
 function _hideE(element) {
 	element.style.display = "none";
+	element.hidden = true;
 }
 
 function _showE(element) {
 	element.style.display = "block";
+	element.hidden = false;
 }
 
 function hideE(element) {
@@ -243,15 +245,14 @@ function createMenu(x, y, options) {	// options = list of (text, action)
 	const menu = CE("div");
 	currentMenu = menu;
 	
-	menu.style.position = "fixed";
+	menu.className = "contextMenu";
 	menu.style.left = `${x}px`;
 	menu.style.top = `${y}px`;
-	menu.style.zindex = "1000";
 	
 	for (const [txt, action] of options) {
 		const but = CE("button");
+		
 		but.textContent = txt;
-		but.className = "B";
 		but.onclick = function(event) {
 			event.stopPropagation();
 			closeMenu();
@@ -437,7 +438,6 @@ async function dialog(msg, immediateHide=false) {
 	
 	queryPageButtonFlag = false;
 	hideE("queryPage");
-	
 }
 
 
@@ -1238,16 +1238,7 @@ async function startMessageListener(messageRef) {
 		
 		if (message.replyingTo) {
 			const replyBox = CE("div");
-			
-			replyBox.style.padding = "3px 6px";
-			replyBox.style.marginBottom = "4px";
-			replyBox.style.borderLeft = "3px solid #888";
-			replyBox.style.fontSize = "12px";
-			replyBox.style.opacity = "0.75";
-			replyBox.style.overflow = "hidden";
-			replyBox.style.textOverflow = "ellipsis";
-			replyBox.style.whiteSpace = "nowrap";
-			replyBox.style.background = "#ddd";
+			replyBox.className = "replyPreview";
 			
 			const replyLabel = CE("b");
 			replyLabel.textContent = "↩ ";
@@ -2168,7 +2159,7 @@ window.showRooms = async function() {
 				let _ = (room.lastMessageMeta.data.length > 30) ? "... " : " ";
 				last.textContent = "\n" + room.lastMessageMeta.data.slice(0, 30) + _;
 			} else {
-				last.textContent = "n\No Messages.";
+				last.textContent = "\nNo Messages.";
 			}
 		} else {
 			last.textContent = "\nNo Messages.";
@@ -2184,11 +2175,19 @@ window.showRooms = async function() {
 		const but2 = CE("button");
 		but2.className = "B";
 		but2.textContent = "Delete";
-		but2.onclick = function() {
+		but2.onclick = async function() {
 			let t = emergencyEnabled;
 			emergencyEnabled = false;
 			
-			let ch = confirm("Delete this Room? (Can't Be Undone)");
+			// let ttt = await ask("Delete this Room? (Can't Be Undone) (Type YES)", "input")[0].toLowerCase();
+			// fails because [] and . have higher precedence than await
+			
+			// either use this or use inline parenthesis as used below
+			//let tttt = await ask("Delete this Room? (Can't Be Undone) (Type YES)", "input");
+			//let ttt = tttt[0]?.trim().toLowerCase();
+			
+			let ttt = (await ask("Delete this Room? (Can't Be Undone) (Type YES)", "input"))[0].toLowerCase();
+			let ch = (ttt == "yes");
 			
 			if (ch) { deleteRoom(room.uid); }
 			emergencyEnabled = t;
@@ -2811,6 +2810,9 @@ onAuthStateChanged(
 		
 		GE("currentUser").textContent = currentUsername;
 		
+		GE("bannerTop").style.display = "block";
+		GE("bannerChat").style.display = "block";
+		
 		GE("loginPage").style.display = "none";
 		GE("adminPage").style.display = "none";
 		
@@ -3146,7 +3148,7 @@ window.callUser =
 			return;
 		}
 		if (!currentRoomData) {
-			alert(
+			dialog(
 				"Calling is available only in private chats."
 			);
 			return;

@@ -6,7 +6,7 @@
 	
 	<title>Neet Hub</title>
 	
-	<link rel="stylesheet" href="css/style.css">
+	<link rel="stylesheet" href="css/styleCool.css">
 	<link rel="icon" type="image/x-icon" href="/favicon.ico">
 	
 </head>
@@ -16,23 +16,20 @@
 	<!-- <div id="sensorDebug" style="position:fixed; top:5px; left:5px; background:rgba(0,0,0,0.7); color:#0f0; font-family:monospace; font-size:12px; padding:4px 8px; border-radius:4px; z-index:99999; pointer-events:none;">
 		Waiting for sensor...
 	</div> -->
-	<button onclick="window.location.reload(true)" class="B"> Reload (Press to fix Glitches) </button>
-	<button onclick="toggleEmergencyActivity()" class="B" id="emergencyToggle"> Emergency: Enabled </button>
-	<button onclick="toggleNotifications()" class="B" id="notificationToggle"> Notifications: Disabled </button>
 	
 	<div id="queryPage" class="superTop" hidden>
-		<p id="query_q" style="color: white"></p>
+		<p id="query_q"></p>
 		<input id="query_i" type="text">
 		<input id="query_p" type="password">
 		
 		<button id="query_b" onclick="queryPageButtonClicked()"> Ok </button>
 	</div>
 	
-	<div id="loginPage">
+	<div id="loginPage" style="background: white">
 		<p id="loginStatus"></p>
 		<h1> Neet Hub </h1>
 		<h2> Login </h2>
-		<h3> Stamp: 068 </h3>
+		<h3> Stamp: 070 </h3>
 		
 		<input
 			id = "username"
@@ -54,13 +51,19 @@
 	</div>
 	
 	<div id="appWorking">
+		<div id="bannerTop" class="banner" style="display: none">
+			<button onclick="window.location.reload(true)" class="B"> Reload (Press to fix Glitches) </button>
+			<button onclick="toggleEmergencyActivity()" class="B" id="emergencyToggle"> Emergency: Enabled </button>
+			<button onclick="toggleNotifications()" class="B" id="notificationToggle"> Notifications: Disabled </button>
+			<h1 id="roomTitle" style="padding: 3px 5px 3px 5px; margin: 0px"> Neet Hub Chat </h1>
+		</div>
+		
 		<div id="chatPage" class="pageStyleB">
 			<p>
 				Logged in as:
 				<b id="currentUser"></b>
 				<button onclick="logout()"> Logout </button>
 			</p>
-			<h1 id="roomTitle"> Neet Hub Chat </h1>
 			<b>
 			<div id="onlineHasher"></div>
 			<span class="onlineDot" id="onlineDot"></span>
@@ -72,18 +75,23 @@
 			<button id="scrollToBottom" onclick="scrollToBottomF()" class="fixedButton">🔻</button>
 			
 			<div id="replyingBar" style="display:none;"></div>
-			<input
-				id = "messageInput"
-				type = "text"
-				placeholder="Type a message..."
-			>
 			
-			<button onclick="sendMessage()"> Send </button>
-			<button onclick="callUser()"> Call </button>
+			<div id="bannerChat" class="banner B">
+				<input
+					id = "messageInput"
+					type = "text"
+					placeholder="Type a message..."
+				>
 			
-			<button onclick="recordingTrigger()" style="padding: 3px 8px; font-size: 30px"> 🎙 </button>
-			<input type="file" id="messageFile"  multiple>
-			
+				<button onclick="sendMessage()"> Send </button>
+				<button onclick="callUser()"> Call </button>
+				
+				<label for="recBut" class="icon-btn" title="Record">🎙</label>
+				<div style="display: none"><button onclick="recordingTrigger()" style="padding: 3px 8px; font-size: 20px" class="icon-btn" id="recBut" style="display: none"></button></div>
+				
+				<label for="messageFile" class="file-btn" title="Attach-File">📎</label>
+				<input type="file" id="messageFile" multiple hidden>
+			</div>
 			<hr>
 			<button onclick="showRooms()"> Private Chats </button>
 		

@@ -8,10 +8,15 @@ body {  /* nothing for general, # for id, . for class */
 .pageStyleB {
 	max-width: 500px;
 	margin: 50px auto;
-	background: white;
+	background: #cef;
 	padding: 25px;
 	border-radius: 12px;
 }
+
+.pageStyleB {
+	display: none;
+}
+
 
 h1 {
 	font-family: "Bookman Old Style", Bookman, Georgia, serif;
@@ -50,6 +55,8 @@ button.B {
 	cursor: pointer;
 }
 
+
+
 #messages {
 	height: 400px;
 	overflow-y: auto;
@@ -82,9 +89,6 @@ button.B {
 	display: block;
 }
 
-.pageStyleB {
-	display: none;
-}
 
 .superTop {
 	position: fixed;
@@ -102,6 +106,133 @@ button.B {
 	
 	margin: 50px auto;
 	border-radius: 12px;
+}
+
+.banner {
+	position: fixed;
+	z-index: 999;
+	padding: 5px 15px 5px 15px;
+	background: #7cf;
+	
+	border-radius: 9px;
+	
+	left: 0px;
+	right: 0px;  /* stretches to fit */
+	top: 0px;
+	
+	/* bottom: 0px; commented to make top as default */
+	
+	max-width: 100000px;
+	min-height: 50px;
+	
+	font-size: 32px;
+	font-family: serif;
+	font-weight: bold;
+	height: auto;
+	
+	display: none;
+}
+
+
+.banner.B {
+	top: auto;
+	height: auto;
+	bottom: 0px;
+	left: 0px;
+	right: 0px;
+}
+
+.banner.T {
+	top: 0px;
+	bottom: auto;
+	left: 0px;
+	right: 0px;
+}
+
+.banner.L {
+	top: 0px;
+	bottom: 0px;
+	left: 0px;
+	right: auto;
+}
+
+.banner.R {
+	top: 0px;
+	bottom: 0px;
+	left: auto;
+	right: 0px;
+}
+
+.banner.B button,
+.banner.B .file-btn {
+	margin: 0;
+	white-space: nowrap;
+	display: inline-flex;
+	align-items: center;
+	justify-content: center;
+	height: 38px;
+	box-sizing: border-box;
+	font-size: 14px;
+}
+
+.banner.B {
+	top: auto;
+	bottom: 0px;
+	left: 0px;
+	right: 0px;
+	height: auto;
+	min-height: 50px;
+
+	/* Flex container to place everything side-by-side */
+	display: flex;
+	align-items: center;
+	gap: 6px;
+	box-sizing: border-box;
+}
+
+/* Ensure the text input grows to fill available space */
+.banner.B #messageInput {
+	flex: 1;
+	margin: 0;
+	height: 38px;
+	font-size: 15px;
+	border: 1px solid #ccc;
+	border-radius: 6px;
+}
+
+/* Shared styling for buttons and file label */
+.banner.B button,
+.banner.B .file-btn {
+	margin: 0;
+	white-space: nowrap;
+	display: inline-flex;
+	align-items: center;
+	justify-content: center;
+	height: 38px;
+	box-sizing: border-box;
+	font-size: 14px;
+}
+
+/* Icon button sizing */
+.banner.B .icon-btn,
+.banner.B .file-btn {
+	width: 38px;
+	padding: 0;
+	font-size: 18px;
+	cursor: pointer;
+	background: #fff;
+	border: 1px solid #ccc;
+	border-radius: 6px;
+	user-select: none;
+}
+
+.banner.B .file-btn:hover {
+	transform: scale(1.0005);
+	box-shadow: 0 5px 15px rgba(0, 0, 0, 0.2);
+}
+
+.banner.B .file-btn:active {
+	transform: translateY(1px) scale(0.98);
 }
 
 #emergencyBubble {

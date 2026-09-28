@@ -1,0 +1,1459 @@
+/* =========================================================
+   NEET HUB — COMPLETE UI REDESIGN
+   Plain CSS • No frameworks • Existing JS IDs preserved
+   ========================================================= */
+
+
+/* =========================================================
+   1. DESIGN VARIABLES
+   ========================================================= */
+
+:root {
+	--bg: #0b1020;
+	--bg-soft: #11182b;
+	--surface: rgba(22, 30, 51, 0.88);
+	--surface-solid: #161e33;
+	--surface-light: #1c2640;
+
+	--border: rgba(255, 255, 255, 0.10);
+	--border-strong: rgba(255, 255, 255, 0.16);
+
+	--text: #f4f7ff;
+	--text-soft: #aeb8ce;
+	--text-muted: #7f8aa3;
+
+	--primary: #7c8cff;
+	--primary-hover: #91a0ff;
+	--primary-dark: #5968e8;
+
+	--success: #4ade80;
+	--danger: #ff5c6c;
+	--warning: #fbbf24;
+
+	--message: #1a2339;
+	--message-own: #4f5eea;
+
+	--input: rgba(255, 255, 255, 0.055);
+
+	--shadow-sm: 0 4px 15px rgba(0, 0, 0, 0.20);
+	--shadow-md: 0 12px 35px rgba(0, 0, 0, 0.30);
+	--shadow-lg: 0 25px 70px rgba(0, 0, 0, 0.45);
+
+	--radius-sm: 8px;
+	--radius-md: 14px;
+	--radius-lg: 20px;
+
+	--transition: 0.20s ease;
+}
+
+
+/* =========================================================
+   2. GLOBAL RESET / BASE
+   ========================================================= */
+
+* {
+	box-sizing: border-box;
+}
+
+html {
+	scroll-behavior: smooth;
+}
+
+body {
+	margin: 0;
+	min-height: 100vh;
+
+	font-family:
+		Inter,
+		Segoe UI,
+		Roboto,
+		Helvetica,
+		Arial,
+		sans-serif;
+
+	background:
+		radial-gradient(
+			circle at 15% 15%,
+			rgba(124, 140, 255, 0.13),
+			transparent 30%
+		),
+		radial-gradient(
+			circle at 85% 85%,
+			rgba(89, 104, 232, 0.10),
+			transparent 30%
+		),
+		var(--bg);
+
+	color: var(--text);
+
+	-webkit-font-smoothing: antialiased;
+	text-rendering: optimizeLegibility;
+}
+
+
+/* Make HTML's hidden attribute actually win */
+[hidden] {
+	display: none !important;
+}
+
+
+/* =========================================================
+   3. TYPOGRAPHY
+   ========================================================= */
+
+h1,
+h2,
+h3,
+h4,
+h5,
+h6 {
+	margin-top: 0;
+	color: var(--text);
+}
+
+h1 {
+	font-family:
+		"Bookman Old Style",
+		Bookman,
+		Georgia,
+		serif;
+
+	font-size: 32px;
+	font-weight: 700;
+	letter-spacing: -0.5px;
+}
+
+h2 {
+	font-size: 25px;
+	margin-bottom: 14px;
+}
+
+h3 {
+	font-size: 17px;
+	color: var(--text-soft);
+	font-weight: 500;
+}
+
+p {
+	color: var(--text-soft);
+	line-height: 1.6;
+}
+
+hr {
+	border: 0;
+	border-top: 1px solid var(--border);
+	margin: 20px 0;
+}
+
+
+/* =========================================================
+   4. GENERAL BUTTONS
+   ========================================================= */
+
+button {
+	border: 1px solid var(--border-strong);
+	border-radius: var(--radius-sm);
+
+	padding: 10px 16px;
+	margin: 5px;
+
+	background: var(--surface-light);
+	color: var(--text);
+
+	font-family: inherit;
+	font-size: 14px;
+	font-weight: 600;
+
+	cursor: pointer;
+
+	box-shadow: var(--shadow-sm);
+
+	transition:
+		transform var(--transition),
+		background var(--transition),
+		border-color var(--transition),
+		box-shadow var(--transition),
+		color var(--transition);
+}
+
+button:hover {
+	transform: translateY(-1px);
+	background: #25304d;
+	border-color: rgba(124, 140, 255, 0.45);
+	box-shadow: 0 7px 22px rgba(0, 0, 0, 0.30);
+}
+
+button:active {
+	transform: translateY(1px) scale(0.98);
+	box-shadow: 0 3px 10px rgba(0, 0, 0, 0.25);
+}
+
+button:focus-visible {
+	outline: 2px solid var(--primary);
+	outline-offset: 2px;
+}
+
+
+/* Small buttons */
+button.B {
+	padding: 7px 11px;
+	margin: 2px;
+
+	font-size: 13px;
+	border-radius: 7px;
+}
+
+
+/* =========================================================
+   5. INPUTS
+   ========================================================= */
+
+input {
+	width: 100%;
+	padding: 12px 14px;
+	margin: 8px 0;
+
+	border: 1px solid var(--border-strong);
+	border-radius: var(--radius-sm);
+
+	background: var(--input);
+	color: var(--text);
+
+	font-family: inherit;
+	font-size: 15px;
+
+	outline: none;
+
+	transition:
+		border-color var(--transition),
+		background var(--transition),
+		box-shadow var(--transition);
+}
+
+input::placeholder {
+	color: var(--text-muted);
+}
+
+input:hover {
+	border-color: rgba(255, 255, 255, 0.20);
+}
+
+input:focus {
+	background: rgba(255, 255, 255, 0.075);
+	border-color: var(--primary);
+
+	box-shadow:
+		0 0 0 3px rgba(124, 140, 255, 0.14);
+}
+
+
+/* =========================================================
+   6. LOGIN PAGE
+   ========================================================= */
+
+#loginPage {
+	width: min(500px, calc(100% - 30px));
+
+	margin: 8vh auto 40px;
+
+	padding: 38px;
+
+	background:
+		linear-gradient(
+			145deg,
+			rgba(30, 40, 67, 0.96),
+			rgba(18, 25, 43, 0.96)
+		) !important;
+
+	border: 1px solid var(--border-strong);
+	border-radius: 24px;
+
+	box-shadow: var(--shadow-lg);
+
+	position: relative;
+	overflow: hidden;
+
+	animation: pageEnter 0.55s ease-out;
+}
+
+
+/* Decorative glow */
+#loginPage::before {
+	content: "";
+
+	position: absolute;
+
+	width: 180px;
+	height: 180px;
+
+	top: -90px;
+	right: -60px;
+
+	border-radius: 50%;
+
+	background: rgba(124, 140, 255, 0.18);
+
+	filter: blur(10px);
+
+	pointer-events: none;
+}
+
+#loginPage h1 {
+	position: relative;
+
+	margin-bottom: 5px;
+
+	font-size: 40px;
+
+	background:
+		linear-gradient(
+			90deg,
+			#ffffff,
+			#aab5ff
+		);
+
+	background-clip: text;
+	-webkit-background-clip: text;
+
+	color: transparent;
+}
+
+#loginPage h2 {
+	position: relative;
+	margin-top: 0;
+	color: var(--text-soft);
+}
+
+#loginPage h3 {
+	font-family: monospace;
+	font-size: 12px;
+	color: var(--text-muted);
+}
+
+#loginPage button {
+	min-width: 105px;
+}
+
+#loginButton {
+	animation: popIn 0.5s ease;
+}
+
+
+/* =========================================================
+   7. APPLICATION PAGES
+   ========================================================= */
+
+.pageStyleB {
+	display: none;
+
+	width: min(1100px, calc(100% - 30px));
+
+	margin: 110px auto 30px;
+
+	padding: 28px;
+
+	background: var(--surface);
+
+	border: 1px solid var(--border);
+	border-radius: var(--radius-lg);
+
+	box-shadow: var(--shadow-md);
+
+	backdrop-filter: blur(18px);
+	-webkit-backdrop-filter: blur(18px);
+
+	animation: pageEnter 0.35s ease-out;
+}
+
+
+/* =========================================================
+   8. CHAT PAGE
+   ========================================================= */
+
+#chatPage {
+	position: relative;
+	padding-top: 5px;
+	padding-bottom: 120px;
+}
+
+
+/* Logged-in line */
+#chatPage > p:first-child {
+	display: flex;
+	align-items: center;
+	flex-wrap: wrap;
+	gap: 5px;
+
+	margin-bottom: 10px;
+}
+
+#currentUser {
+	color: var(--primary-hover);
+}
+
+
+/* =========================================================
+   9. ONLINE STATUS
+   ========================================================= */
+
+#onlineHasher {
+	display: inline-block;
+
+	margin-right: 8px;
+
+	color: var(--text-soft);
+	font-size: 13px;
+}
+
+.onlineDot {
+	display: inline-block;
+
+	width: 9px;
+	height: 9px;
+
+	border-radius: 50%;
+
+	background: var(--success);
+
+	box-shadow:
+		0 0 0 3px rgba(74, 222, 128, 0.12),
+		0 0 12px rgba(74, 222, 128, 0.45);
+
+	animation: pulse 1.8s ease-in-out infinite;
+}
+
+
+/* =========================================================
+   10. MESSAGE AREA
+   ========================================================= */
+
+#messages {
+	height: min(58vh, 650px);
+
+	overflow-y: auto;
+
+	padding: 14px;
+
+	margin-bottom: 15px;
+
+	border: 1px solid var(--border);
+	border-radius: var(--radius-md);
+
+	background:
+		linear-gradient(
+			180deg,
+			rgba(0, 0, 0, 0.10),
+			rgba(255, 255, 255, 0.015)
+		);
+
+	scroll-behavior: smooth;
+
+	overscroll-behavior: contain;
+}
+
+
+/* Custom scrollbar */
+#messages::-webkit-scrollbar {
+	width: 9px;
+}
+
+#messages::-webkit-scrollbar-track {
+	background: transparent;
+}
+
+#messages::-webkit-scrollbar-thumb {
+	background: rgba(255, 255, 255, 0.14);
+	border-radius: 20px;
+}
+
+#messages::-webkit-scrollbar-thumb:hover {
+	background: rgba(255, 255, 255, 0.24);
+}
+
+
+/* Firefox */
+#messages {
+	scrollbar-width: thin;
+	scrollbar-color:
+		rgba(255, 255, 255, 0.18)
+		transparent;
+}
+
+
+/* =========================================================
+   11. MESSAGE BUBBLES
+   ========================================================= */
+
+.message,
+.messageCompressed {
+	padding: 11px 13px;
+
+	margin-top: 7px;
+	margin-bottom: 7px;
+
+	border: 1px solid rgba(255, 255, 255, 0.055);
+	border-radius: 12px;
+
+	background: var(--message);
+
+	color: var(--text);
+
+	box-shadow: 0 3px 10px rgba(0, 0, 0, 0.12);
+
+	overflow-wrap: anywhere;
+
+	animation: messageIn 0.25s ease-out;
+}
+
+
+/* Sender name */
+.message b,
+.messageCompressed b {
+	display: block;
+
+	margin-bottom: 3px;
+
+	color: var(--primary-hover);
+
+	font-size: 13px;
+}
+
+
+/* =========================================================
+   12. REPLY BAR
+   ========================================================= */
+
+#replyingBar {
+	margin-bottom: 8px;
+
+	padding: 9px 12px;
+
+	border-left: 3px solid var(--primary);
+
+	border-radius: 7px;
+
+	background: rgba(124, 140, 255, 0.09);
+
+	color: var(--text-soft);
+
+	font-size: 13px;
+}
+
+
+/* =========================================================
+   13. SCROLL-TO-BOTTOM BUTTON
+   ========================================================= */
+
+.fixedButton {
+	width: 45px;
+	height: 45px;
+
+	padding: 0;
+	margin: 0;
+
+	border-radius: 50%;
+
+	display: flex;
+	align-items: center;
+	justify-content: center;
+
+	background: var(--primary);
+	color: white;
+
+	border: none;
+
+	box-shadow:
+		0 8px 25px rgba(0, 0, 0, 0.35);
+
+	font-size: 18px;
+
+	transition:
+		transform var(--transition),
+		background var(--transition),
+		box-shadow var(--transition);
+}
+
+.fixedButton:hover {
+	background: var(--primary-hover);
+
+	transform: translateY(-2px);
+
+	box-shadow:
+		0 12px 30px rgba(0, 0, 0, 0.40);
+}
+
+
+/* =========================================================
+   14. BOTTOM MESSAGE COMPOSER
+   ========================================================= */
+
+.banner {
+	position: fixed;
+
+	z-index: 999;
+
+	left: 0;
+	right: 0;
+
+	top: 0;
+
+	padding: 8px 12px;
+
+	min-height: 50px;
+
+	background:
+		rgba(15, 21, 37, 0.92);
+
+	border: 1px solid var(--border);
+
+	box-shadow:
+		0 8px 30px rgba(0, 0, 0, 0.30);
+
+	backdrop-filter: blur(18px);
+	-webkit-backdrop-filter: blur(18px);
+
+	font-size: 16px;
+
+	display: none;
+}
+
+
+/* Bottom banner */
+.banner.B {
+	top: auto;
+	bottom: 0;
+
+	left: 0;
+	right: 0;
+
+	height: auto;
+	min-height: 62px;
+
+	display: flex;
+
+	align-items: center;
+
+	gap: 7px;
+
+	padding: 9px 12px;
+
+	border-radius: 0;
+
+	box-sizing: border-box;
+}
+
+
+/* Top banner */
+.banner.T {
+	top: 0;
+	bottom: auto;
+
+	left: 0;
+	right: 0;
+}
+
+
+/* Left banner */
+.banner.L {
+	top: 0;
+	bottom: 0;
+
+	left: 0;
+	right: auto;
+}
+
+
+/* Right banner */
+.banner.R {
+	top: 0;
+	bottom: 0;
+
+	left: auto;
+	right: 0;
+}
+
+
+/* =========================================================
+   15. MESSAGE INPUT
+   ========================================================= */
+
+.banner.B #messageInput {
+	flex: 1;
+
+	min-width: 0;
+
+	height: 42px;
+
+	margin: 0;
+
+	padding: 0 13px;
+
+	border-radius: 10px;
+
+	font-size: 14px;
+
+	background: rgba(255, 255, 255, 0.07);
+}
+
+
+/* Send / Call */
+.banner.B button {
+	height: 42px;
+
+	margin: 0;
+
+	white-space: nowrap;
+
+	display: inline-flex;
+
+	align-items: center;
+	justify-content: center;
+}
+
+
+/* =========================================================
+   16. ICON BUTTONS
+   ========================================================= */
+
+.banner.B .icon-btn,
+.banner.B .file-btn {
+	width: 42px;
+	height: 42px;
+
+	padding: 0;
+
+	margin: 0;
+
+	flex: 0 0 42px;
+
+	display: inline-flex;
+
+	align-items: center;
+	justify-content: center;
+
+	border: 1px solid var(--border-strong);
+	border-radius: 10px;
+
+	background: rgba(255, 255, 255, 0.06);
+
+	color: var(--text);
+
+	font-size: 18px;
+
+	cursor: pointer;
+
+	user-select: none;
+
+	transition:
+		transform var(--transition),
+		background var(--transition),
+		border-color var(--transition);
+}
+
+.banner.B .icon-btn:hover,
+.banner.B .file-btn:hover {
+	transform: translateY(-1px);
+
+	background: rgba(124, 140, 255, 0.15);
+
+	border-color: rgba(124, 140, 255, 0.40);
+}
+
+.banner.B .icon-btn:active,
+.banner.B .file-btn:active {
+	transform: scale(0.95);
+}
+
+
+/* =========================================================
+   17. TOP NAVIGATION / ROOM TITLE
+   ========================================================= */
+
+#bannerTop {
+	display: flex;
+
+	align-items: center;
+
+	gap: 5px;
+
+	flex-wrap: wrap;
+
+	padding: 8px 12px;
+}
+
+#roomTitle {
+	flex: 1;
+
+	min-width: 150px;
+
+	font-family:
+		"Bookman Old Style",
+		Bookman,
+		Georgia,
+		serif;
+
+	font-size: 21px;
+
+	white-space: nowrap;
+	overflow: hidden;
+	text-overflow: ellipsis;
+
+	color: var(--text);
+
+	margin: 0;
+
+	padding: 3px 5px;
+}
+
+
+/* =========================================================
+   18. PRIVATE ROOMS
+   ========================================================= */
+
+#rooms {
+	display: grid;
+
+	grid-template-columns:
+		repeat(auto-fill, minmax(230px, 1fr));
+
+	gap: 12px;
+}
+
+#rooms > * {
+	min-width: 0;
+}
+
+
+/* =========================================================
+   19. ADMIN PANEL
+   ========================================================= */
+
+#adminPanel {
+	width: 100%;
+
+	background: rgba(255, 255, 255, 0.025);
+
+	border: 1px solid var(--border);
+
+	border-radius: var(--radius-md);
+
+	padding: 22px;
+}
+
+#adminPanel button {
+	margin: 5px 3px;
+}
+
+
+/* Account / history / logs */
+#accounts,
+#lastSeens,
+#history,
+#logDiv {
+	margin-top: 20px;
+
+	padding: 15px;
+
+	border: 1px solid var(--border);
+
+	border-radius: var(--radius-md);
+
+	background: rgba(0, 0, 0, 0.12);
+
+	overflow-x: auto;
+}
+
+
+/* =========================================================
+   20. QUERY / POPUP WINDOW
+   ========================================================= */
+
+.superTop {
+	position: fixed;
+
+	z-index: 9999;
+
+	top: 50%;
+	left: 50%;
+
+	width: min(500px, calc(100% - 30px));
+
+	max-height: 80vh;
+
+	overflow-y: auto;
+
+	transform: translate(-50%, -50%);
+
+	padding: 28px;
+
+	margin: 0;
+
+	background:
+		linear-gradient(
+			145deg,
+			#1c2640,
+			#11182b
+		);
+
+	border: 1px solid var(--border-strong);
+
+	border-radius: var(--radius-lg);
+
+	box-shadow: var(--shadow-lg);
+
+	animation: popupIn 0.25s ease-out;
+}
+
+#query_q {
+	color: var(--text) !important;
+
+	font-size: 16px;
+
+	font-weight: 600;
+
+	line-height: 1.5;
+}
+
+#query_i,
+#query_p {
+	background: rgba(0, 0, 0, 0.20);
+}
+
+
+/* =========================================================
+   21. EMERGENCY BUBBLE
+   ========================================================= */
+
+#emergencyBubble {
+	position: fixed;
+
+	right: 20px;
+	bottom: 75px;
+
+	z-index: 9999;
+
+	width: 55px;
+	height: 55px;
+
+	margin: 0;
+	padding: 0;
+
+	display: flex;
+
+	align-items: center;
+	justify-content: center;
+
+	border: 1px solid rgba(255, 255, 255, 0.15);
+
+	border-radius: 50%;
+
+	background:
+		linear-gradient(
+			145deg,
+			#252c40,
+			#151a29
+		);
+
+	color: white;
+
+	font-size: 19px;
+
+	cursor: grab;
+
+	box-shadow:
+		0 10px 30px rgba(0, 0, 0, 0.40);
+
+	user-select: none;
+
+	touch-action: none;
+
+	transition:
+		transform var(--transition),
+		box-shadow var(--transition),
+		background var(--transition);
+}
+
+#emergencyBubble:hover {
+	transform: scale(1.05);
+
+	box-shadow:
+		0 14px 35px rgba(0, 0, 0, 0.50);
+}
+
+#emergencyBubble:active {
+	cursor: grabbing;
+
+	transform: scale(0.95);
+}
+
+
+/* =========================================================
+   22. PASSWORD MASK
+   ========================================================= */
+
+.mask-password {
+	-webkit-text-security: disc;
+	text-security: disc;
+}
+
+
+/* =========================================================
+   23. NOTIFICATIONS
+   ========================================================= */
+
+.notification {
+	padding: 12px 15px;
+
+	border: 1px solid var(--border);
+
+	border-radius: 10px;
+
+	background: var(--surface-solid);
+
+	color: var(--text);
+
+	box-shadow: var(--shadow-md);
+
+	animation: notificationIn 0.4s ease-out;
+}
+
+
+/* =========================================================
+   24. ANIMATIONS
+   ========================================================= */
+
+@keyframes pageEnter {
+	from {
+		opacity: 0;
+
+		transform:
+			translateY(12px)
+			scale(0.985);
+	}
+
+	to {
+		opacity: 1;
+
+		transform:
+			translateY(0)
+			scale(1);
+	}
+}
+
+
+@keyframes popupIn {
+	from {
+		opacity: 0;
+
+		transform:
+			translate(-50%, -47%)
+			scale(0.96);
+	}
+
+	to {
+		opacity: 1;
+
+		transform:
+			translate(-50%, -50%)
+			scale(1);
+	}
+}
+
+
+@keyframes popIn {
+	from {
+		opacity: 0;
+		transform: scale(0.8);
+	}
+
+	to {
+		opacity: 1;
+		transform: scale(1);
+	}
+}
+
+
+@keyframes messageIn {
+	from {
+		opacity: 0;
+		transform: translateY(8px);
+	}
+
+	to {
+		opacity: 1;
+		transform: translateY(0);
+	}
+}
+
+
+@keyframes notificationIn {
+	from {
+		opacity: 0;
+		transform: translateX(100%);
+	}
+
+	to {
+		opacity: 1;
+		transform: translateX(0);
+	}
+}
+
+
+@keyframes pulse {
+	0%,
+	100% {
+		transform: scale(1);
+		opacity: 1;
+	}
+
+	50% {
+		transform: scale(1.35);
+		opacity: 0.65;
+	}
+}
+
+
+@keyframes spin {
+	to {
+		transform: rotate(360deg);
+	}
+}
+
+
+/* =========================================================
+   25. MOBILE RESPONSIVENESS
+   ========================================================= */
+
+@media (max-width: 700px) {
+
+	body {
+		font-size: 14px;
+	}
+
+
+	#loginPage {
+		width: calc(100% - 20px);
+
+		margin-top: 25px;
+
+		padding: 28px 20px;
+
+		border-radius: 18px;
+	}
+
+
+	#loginPage h1 {
+		font-size: 34px;
+	}
+
+
+	.pageStyleB {
+		width: calc(100% - 14px);
+
+		margin: 12px auto;
+
+		padding: 18px;
+
+		border-radius: 15px;
+	}
+
+
+	#messages {
+		height: 55vh;
+
+		padding: 9px;
+	}
+
+
+	.message,
+	.messageCompressed {
+		padding: 9px 11px;
+
+		border-radius: 10px;
+	}
+
+
+	/* Bottom composer on small screens */
+	.banner.B {
+		gap: 5px;
+
+		padding: 7px;
+
+		min-height: 58px;
+	}
+
+
+	.banner.B #messageInput {
+		height: 40px;
+
+		padding: 0 10px;
+
+		font-size: 14px;
+	}
+
+
+	.banner.B button {
+		height: 40px;
+
+		padding: 0 10px;
+
+		font-size: 13px;
+	}
+
+
+	.banner.B .icon-btn,
+	.banner.B .file-btn {
+		width: 40px;
+		height: 40px;
+
+		flex-basis: 40px;
+	}
+
+	#chatPage {
+		padding-Bottom: 90px;
+	}
+
+	#roomsPage,
+	#adminPage,
+	#callPage {
+		padding-top: 85px;
+	}
+
+	#emergencyBubble {
+		right: 12px;
+		bottom: 68px;
+
+		width: 48px;
+		height: 48px;
+	}
+
+
+	#roomTitle {
+		font-size: 18px;
+	}
+
+
+	#rooms {
+		grid-template-columns: 1fr;
+	}
+}
+
+
+/* =========================================================
+   26. VERY SMALL PHONES
+   ========================================================= */
+
+@media (max-width: 420px) {
+
+	#loginPage {
+		padding: 24px 16px;
+	}
+
+
+	.pageStyleB {
+		padding: 14px;
+	}
+
+
+	.banner.B button {
+		font-size: 0;
+	}
+
+
+	.banner.B button::first-letter {
+		font-size: 18px;
+	}
+
+
+	#messages {
+		height: 53vh;
+	}
+}
+
+
+/* =========================================================
+   27. REDUCE ANIMATIONS IF USER REQUESTS IT
+   ========================================================= */
+
+@media (prefers-reduced-motion: reduce) {
+
+	*,
+	*::before,
+	*::after {
+		animation-duration: 0.01ms !important;
+		animation-iteration-count: 1 !important;
+		scroll-behavior: auto !important;
+		transition-duration: 0.01ms !important;
+	}
+}
+
+/* =========================================================
+   REPLY PREVIEW INSIDE MESSAGE
+   ========================================================= */
+
+.replyPreview {
+	padding: 7px 10px;
+	margin-bottom: 6px;
+
+	border-left: 3px solid var(--primary);
+
+	border-radius: 7px;
+
+	background: rgba(124, 140, 255, 0.08);
+
+	color: var(--text-soft);
+
+	font-size: 12px;
+	line-height: 1.4;
+
+	overflow: hidden;
+	text-overflow: ellipsis;
+	white-space: nowrap;
+
+	box-shadow:
+		inset 0 0 12px rgba(124, 140, 255, 0.025);
+}
+
+.replyPreview b {
+	display: inline;
+	margin: 0;
+
+	color: var(--primary-hover);
+
+	font-size: 13px;
+	font-weight: 700;
+}
+
+#queryPage {
+	width: min(500px, calc(100% - 30px));
+}
+
+#queryPage::before {
+	content: "";
+
+	position: absolute;
+
+	inset: 0;
+
+	border-radius: inherit;
+
+	pointer-events: none;
+
+	box-shadow:
+		inset 0 0 0 1px rgba(255, 255, 255, 0.025);
+}
+
+#queryPage input {
+	margin: 8px 0;
+}
+
+#queryPage button {
+	margin-top: 8px;
+	min-width: 80px;
+}
+
+#queryPage {
+	padding: 30px;
+
+	background:
+		linear-gradient(
+			145deg,
+			rgba(30, 40, 67, 0.98),
+			rgba(15, 21, 37, 0.98)
+		);
+
+	border: 1px solid var(--border-strong);
+	border-radius: var(--radius-lg);
+
+	box-shadow: var(--shadow-lg);
+
+	color: var(--text);
+}
+
+.contextMenu {
+	position: fixed;
+	z-index: 1000;
+
+	display: flex;
+	flex-direction: column;
+
+	min-width: 170px;
+
+	padding: 6px;
+
+	background:
+		linear-gradient(
+			145deg,
+			rgba(30, 40, 67, 0.97),
+			rgba(17, 24, 43, 0.97)
+		);
+
+	border: 1px solid var(--border-strong);
+	border-radius: 12px;
+
+	box-shadow: var(--shadow-lg);
+
+	backdrop-filter: blur(18px);
+	-webkit-backdrop-filter: blur(18px);
+
+	animation: menuIn 0.15s ease-out;
+}
+
+.contextMenu button {
+	width: 100%;
+
+	margin: 2px 0;
+	padding: 9px 12px;
+
+	border: 1px solid transparent;
+	border-radius: 7px;
+
+	background: transparent;
+
+	box-shadow: none;
+
+	text-align: left;
+
+	color: var(--text-soft);
+
+	font-size: 13px;
+	font-weight: 500;
+}
+
+.contextMenu button:hover {
+	background: rgba(124, 140, 255, 0.12);
+
+	border-color: rgba(124, 140, 255, 0.18);
+
+	color: var(--text);
+
+	transform: none;
+
+	box-shadow: none;
+}
+
+.contextMenu button:active {
+	background: rgba(124, 140, 255, 0.20);
+
+	transform: scale(0.98);
+}
+
+@keyframes menuIn {
+	from {
+		opacity: 0;
+		transform: scale(0.96) translateY(-3px);
+	}
+
+	to {
+		opacity: 1;
+		transform: scale(1) translateY(0);
+	}
+}
+
+
+#roomsPage,
+#adminPage,
+#callPage {
+	padding-top: 75px;
+}
+
