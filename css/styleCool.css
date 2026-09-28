@@ -1,5 +1,6 @@
 /* =========================================================
-   NEET HUB — COMPLETE UI REDESIGN
+   NEET HUB — OBSIDIAN GOLD
+   Luxury Glass UI
    Plain CSS • No frameworks • Existing JS IDs preserved
    ========================================================= */
 
@@ -9,46 +10,119 @@
    ========================================================= */
 
 :root {
-	--bg: #0b1020;
-	--bg-soft: #11182b;
-	--surface: rgba(22, 30, 51, 0.88);
-	--surface-solid: #161e33;
-	--surface-light: #1c2640;
 
-	--border: rgba(255, 255, 255, 0.10);
-	--border-strong: rgba(255, 255, 255, 0.16);
+	/* ───────────── Core Background ───────────── */
 
-	--text: #f4f7ff;
-	--text-soft: #aeb8ce;
-	--text-muted: #7f8aa3;
+	--bg: #040404;
+	--bg-soft: #090908;
 
-	--primary: #7c8cff;
-	--primary-hover: #91a0ff;
-	--primary-dark: #5968e8;
+	--body-gradient-1: rgba(212, 175, 55, 0.055);
+	--body-gradient-2: rgba(255, 255, 255, 0.018);
 
-	--success: #4ade80;
-	--danger: #ff5c6c;
-	--warning: #fbbf24;
 
-	--message: #1a2339;
-	--message-own: #4f5eea;
+	/* ───────────── Glass Surfaces ───────────── */
 
-	--input: rgba(255, 255, 255, 0.055);
+	--surface: rgba(17, 16, 13, 0.76);
+	--surface-solid: #11100d;
+	--surface-light: #1a1812;
 
-	--shadow-sm: 0 4px 15px rgba(0, 0, 0, 0.20);
-	--shadow-md: 0 12px 35px rgba(0, 0, 0, 0.30);
-	--shadow-lg: 0 25px 70px rgba(0, 0, 0, 0.45);
+	--glass-highlight: rgba(255, 255, 255, 0.045);
+	--glass-highlight-strong: rgba(255, 255, 255, 0.075);
+
+
+	/* ───────────── Borders ───────────── */
+
+	--border: rgba(255, 215, 120, 0.085);
+	--border-strong: rgba(255, 215, 120, 0.18);
+	--border-bright: rgba(255, 215, 120, 0.32);
+
+
+	/* ───────────── Typography ───────────── */
+
+	--text: #fffdf5;
+	--text-soft: #d0c8b3;
+	--text-muted: #827b6b;
+
+	--heading-gold: #e5c45a;
+
+
+	/* ───────────── Gold System ───────────── */
+
+	--primary: #c3a13a;
+	--primary-hover: #d7bb5c;
+	--primary-dark: #8f7422;
+
+	--gold-light: #d8bd65;
+	--gold-mid: #b99a35;
+	--gold-dark: #80671d;
+
+	--primary-soft: rgba(195, 161, 58, 0.075);
+	--primary-glow: rgba(195, 161, 58, 0.10);
+
+
+	/* ───────────── Status ───────────── */
+
+	--success: #58d68d;
+	--danger: #ff5f6d;
+	--warning: #e5b93d;
+
+
+	/* ───────────── Banner / Navigation ───────────── */
+
+	--banner: rgba(6, 6, 5, 0.78);
+	--shadow-banner: 0 8px 35px rgba(0, 0, 0, 0.65);
+
+
+	/* ───────────── Messages ───────────── */
+
+	--message: #14130f;
+	--message-own: #30250c;
+
+	--message-border: rgba(255, 215, 120, 0.065);
+
+
+	/* ───────────── Inputs ───────────── */
+
+	--input: rgba(255, 255, 255, 0.042);
+	--input-focus: rgba(255, 255, 255, 0.065);
+
+
+	/* ───────────── Shadows ───────────── */
+
+	--shadow-sm:
+		0 4px 15px rgba(0, 0, 0, 0.42);
+
+	--shadow-md:
+		0 14px 40px rgba(0, 0, 0, 0.52);
+
+	--shadow-lg:
+		0 28px 80px rgba(0, 0, 0, 0.78);
+
+
+	/* ───────────── Gold Glow ───────────── */
+
+	--glow-gold:
+		0 0 18px rgba(212, 175, 55, 0.10);
+
+	--glow-gold-strong:
+		0 0 28px rgba(212, 175, 55, 0.17);
+
+
+	/* ───────────── Radius ───────────── */
 
 	--radius-sm: 8px;
 	--radius-md: 14px;
 	--radius-lg: 20px;
+
+
+	/* ───────────── Animation ───────────── */
 
 	--transition: 0.20s ease;
 }
 
 
 /* =========================================================
-   2. GLOBAL RESET / BASE
+   2. GLOBAL RESET
    ========================================================= */
 
 * {
@@ -71,27 +145,53 @@ body {
 		Arial,
 		sans-serif;
 
+	color: var(--text);
+
 	background:
 		radial-gradient(
-			circle at 15% 15%,
-			rgba(124, 140, 255, 0.13),
-			transparent 30%
+			circle at 15% 0%,
+			var(--body-gradient-1),
+			transparent 28%
 		),
 		radial-gradient(
-			circle at 85% 85%,
-			rgba(89, 104, 232, 0.10),
+			circle at 100% 100%,
+			var(--body-gradient-2),
 			transparent 30%
 		),
-		var(--bg);
-
-	color: var(--text);
+		linear-gradient(
+			135deg,
+			#030303,
+			var(--bg),
+			#080806
+		);
 
 	-webkit-font-smoothing: antialiased;
 	text-rendering: optimizeLegibility;
 }
 
 
-/* Make HTML's hidden attribute actually win */
+/* Subtle luxury grain */
+
+body::before {
+	content: "";
+
+	position: fixed;
+	inset: 0;
+
+	pointer-events: none;
+	z-index: -1;
+
+	opacity: 0.035;
+
+	background-image:
+		url("data:image/svg+xml,%3Csvg viewBox='0 0 180 180' xmlns='http://www.w3.org/2000/svg'%3E%3Cfilter id='n'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='.85' numOctaves='3' stitchTiles='stitch'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23n)' opacity='.7'/%3E%3C/svg%3E");
+
+	mix-blend-mode: soft-light;
+}
+
+
+/* Make HTML hidden attribute actually work */
+
 [hidden] {
 	display: none !important;
 }
@@ -151,22 +251,35 @@ hr {
    ========================================================= */
 
 button {
-	border: 1px solid var(--border-strong);
+	position: relative;
+
 	border-radius: var(--radius-sm);
 
 	padding: 10px 16px;
 	margin: 5px;
 
-	background: var(--surface-light);
-	color: var(--text);
+	background:
+		linear-gradient(
+			145deg,
+			#1c1a14,
+			#0e0e0b
+		);
 
+	color: var(--primary-hover);
+
+	border: 1px solid rgba(212, 175, 55, 0.28);
+
+	box-shadow:
+		0 4px 14px rgba(0, 0, 0, 0.35),
+		inset 0 1px 0 rgba(255, 255, 255, 0.055);
+
+	text-shadow: 0 0 10px rgba(212, 175, 55, 0.08);
+	
 	font-family: inherit;
 	font-size: 14px;
-	font-weight: 600;
+	font-weight: 650;
 
 	cursor: pointer;
-
-	box-shadow: var(--shadow-sm);
 
 	transition:
 		transform var(--transition),
@@ -176,17 +289,56 @@ button {
 		color var(--transition);
 }
 
-button:hover {
-	transform: translateY(-1px);
-	background: #25304d;
-	border-color: rgba(124, 140, 255, 0.45);
-	box-shadow: 0 7px 22px rgba(0, 0, 0, 0.30);
+
+/* Fine highlight across button */
+
+button::before {
+	content: "";
+
+	position: absolute;
+
+	top: 1px;
+	left: 10%;
+	right: 10%;
+
+	height: 1px;
+
+	background: rgba(255, 255, 255, 0.35);
+
+	border-radius: 50%;
+
+	pointer-events: none;
 }
+
+
+button:hover {
+	background:
+		linear-gradient(
+			145deg,
+			#282417,
+			#13120d
+		);
+
+	color: #f0d578;
+
+	border-color: rgba(212, 175, 55, 0.48);
+
+	box-shadow:
+		0 7px 22px rgba(0, 0, 0, 0.45),
+		0 0 15px rgba(212, 175, 55, 0.08),
+		inset 0 1px 0 rgba(255, 255, 255, 0.07);
+
+	transform: translateY(-1px);
+}
+
 
 button:active {
 	transform: translateY(1px) scale(0.98);
-	box-shadow: 0 3px 10px rgba(0, 0, 0, 0.25);
+
+	box-shadow:
+		0 3px 10px rgba(0, 0, 0, 0.35);
 }
+
 
 button:focus-visible {
 	outline: 2px solid var(--primary);
@@ -195,6 +347,7 @@ button:focus-visible {
 
 
 /* Small buttons */
+
 button.B {
 	padding: 7px 11px;
 	margin: 2px;
@@ -210,13 +363,21 @@ button.B {
 
 input {
 	width: 100%;
+
 	padding: 12px 14px;
 	margin: 8px 0;
 
 	border: 1px solid var(--border-strong);
 	border-radius: var(--radius-sm);
 
-	background: var(--input);
+	background:
+		linear-gradient(
+			180deg,
+			rgba(255, 255, 255, 0.025),
+			rgba(0, 0, 0, 0.08)
+		),
+		var(--input);
+
 	color: var(--text);
 
 	font-family: inherit;
@@ -224,26 +385,35 @@ input {
 
 	outline: none;
 
+	box-shadow:
+		inset 0 1px 1px rgba(255, 255, 255, 0.025);
+
 	transition:
 		border-color var(--transition),
 		background var(--transition),
 		box-shadow var(--transition);
 }
 
+
 input::placeholder {
 	color: var(--text-muted);
 }
 
+
 input:hover {
-	border-color: rgba(255, 255, 255, 0.20);
+	border-color: rgba(255, 215, 120, 0.20);
 }
 
+
 input:focus {
-	background: rgba(255, 255, 255, 0.075);
+	background: var(--input-focus);
+
 	border-color: var(--primary);
 
 	box-shadow:
-		0 0 0 3px rgba(124, 140, 255, 0.14);
+		0 0 0 3px var(--primary-soft),
+		0 0 18px rgba(212, 175, 55, 0.055),
+		inset 0 1px 2px rgba(0, 0, 0, 0.25);
 }
 
 
@@ -252,51 +422,89 @@ input:focus {
    ========================================================= */
 
 #loginPage {
+	position: relative;
+
 	width: min(500px, calc(100% - 30px));
 
 	margin: 8vh auto 40px;
 
 	padding: 38px;
 
+	overflow: hidden;
+
 	background:
 		linear-gradient(
 			145deg,
-			rgba(30, 40, 67, 0.96),
-			rgba(18, 25, 43, 0.96)
+			rgba(30, 28, 21, 0.92),
+			rgba(12, 12, 10, 0.96)
 		) !important;
 
 	border: 1px solid var(--border-strong);
 	border-radius: 24px;
 
-	box-shadow: var(--shadow-lg);
+	box-shadow:
+		var(--shadow-lg),
+		inset 0 1px 0 rgba(255, 255, 255, 0.055);
 
-	position: relative;
-	overflow: hidden;
+	backdrop-filter: blur(22px);
+	-webkit-backdrop-filter: blur(22px);
 
 	animation: pageEnter 0.55s ease-out;
 }
 
 
-/* Decorative glow */
+/* Gold ambient light */
+
 #loginPage::before {
 	content: "";
 
 	position: absolute;
 
-	width: 180px;
-	height: 180px;
+	width: 230px;
+	height: 230px;
 
-	top: -90px;
-	right: -60px;
+	top: -140px;
+	right: -90px;
 
 	border-radius: 50%;
 
-	background: rgba(124, 140, 255, 0.18);
+	background:
+		radial-gradient(
+			circle,
+			rgba(212, 175, 55, 0.18),
+			transparent 68%
+		);
 
-	filter: blur(10px);
+	filter: blur(12px);
 
 	pointer-events: none;
 }
+
+
+/* Fine glass reflection */
+
+#loginPage::after {
+	content: "";
+
+	position: absolute;
+
+	top: 0;
+	left: 7%;
+	right: 7%;
+
+	height: 1px;
+
+	background:
+		linear-gradient(
+			90deg,
+			transparent,
+			rgba(255, 225, 130, 0.35),
+			transparent
+		);
+
+	pointer-events: none;
+}
+
 
 #loginPage h1 {
 	position: relative;
@@ -307,32 +515,45 @@ input:focus {
 
 	background:
 		linear-gradient(
-			90deg,
-			#ffffff,
-			#aab5ff
+			105deg,
+			#fffdf3 15%,
+			var(--gold-light) 48%,
+			#b88e24 75%,
+			#fff1a9 100%
 		);
 
 	background-clip: text;
 	-webkit-background-clip: text;
 
 	color: transparent;
+
+	filter:
+		drop-shadow(0 4px 12px rgba(212, 175, 55, 0.12));
 }
+
 
 #loginPage h2 {
 	position: relative;
+
 	margin-top: 0;
+
 	color: var(--text-soft);
 }
 
+
 #loginPage h3 {
 	font-family: monospace;
+
 	font-size: 12px;
+
 	color: var(--text-muted);
 }
+
 
 #loginPage button {
 	min-width: 105px;
 }
+
 
 #loginButton {
 	animation: popIn 0.5s ease;
@@ -352,17 +573,59 @@ input:focus {
 
 	padding: 28px;
 
-	background: var(--surface);
+	position: relative;
+	overflow: hidden;
+
+	background:
+		linear-gradient(
+			145deg,
+			rgba(255, 255, 255, 0.035),
+			transparent 34%
+		),
+		linear-gradient(
+			325deg,
+			rgba(212, 175, 55, 0.025),
+			transparent 40%
+		),
+		var(--surface);
 
 	border: 1px solid var(--border);
+
 	border-radius: var(--radius-lg);
 
-	box-shadow: var(--shadow-md);
+	box-shadow:
+		var(--shadow-md),
+		inset 0 1px 0 var(--glass-highlight);
 
-	backdrop-filter: blur(18px);
-	-webkit-backdrop-filter: blur(18px);
+	backdrop-filter: blur(22px);
+	-webkit-backdrop-filter: blur(22px);
 
 	animation: pageEnter 0.35s ease-out;
+}
+
+
+/* Thin golden upper reflection */
+
+.pageStyleB::before {
+	content: "";
+
+	position: absolute;
+
+	top: 0;
+	left: 8%;
+	right: 8%;
+
+	height: 1px;
+
+	background:
+		linear-gradient(
+			90deg,
+			transparent,
+			rgba(212, 175, 55, 0.25),
+			transparent
+		);
+
+	pointer-events: none;
 }
 
 
@@ -372,20 +635,24 @@ input:focus {
 
 #chatPage {
 	position: relative;
+
 	padding-top: 5px;
 	padding-bottom: 120px;
 }
 
 
 /* Logged-in line */
+
 #chatPage > p:first-child {
 	display: flex;
+
 	align-items: center;
 	flex-wrap: wrap;
 	gap: 5px;
 
 	margin-bottom: 10px;
 }
+
 
 #currentUser {
 	color: var(--primary-hover);
@@ -402,8 +669,10 @@ input:focus {
 	margin-right: 8px;
 
 	color: var(--text-soft);
+
 	font-size: 13px;
 }
+
 
 .onlineDot {
 	display: inline-block;
@@ -416,8 +685,8 @@ input:focus {
 	background: var(--success);
 
 	box-shadow:
-		0 0 0 3px rgba(74, 222, 128, 0.12),
-		0 0 12px rgba(74, 222, 128, 0.45);
+		0 0 0 3px rgba(74, 222, 128, 0.10),
+		0 0 12px rgba(74, 222, 128, 0.38);
 
 	animation: pulse 1.8s ease-in-out infinite;
 }
@@ -437,14 +706,20 @@ input:focus {
 	margin-bottom: 15px;
 
 	border: 1px solid var(--border);
+
 	border-radius: var(--radius-md);
 
 	background:
 		linear-gradient(
 			180deg,
-			rgba(0, 0, 0, 0.10),
-			rgba(255, 255, 255, 0.015)
-		);
+			rgba(255, 255, 255, 0.018),
+			rgba(0, 0, 0, 0.15)
+		),
+		rgba(4, 4, 3, 0.32);
+
+	box-shadow:
+		inset 0 1px 0 rgba(255, 255, 255, 0.025),
+		inset 0 0 30px rgba(0, 0, 0, 0.16);
 
 	scroll-behavior: smooth;
 
@@ -453,29 +728,46 @@ input:focus {
 
 
 /* Custom scrollbar */
+
 #messages::-webkit-scrollbar {
 	width: 9px;
 }
+
 
 #messages::-webkit-scrollbar-track {
 	background: transparent;
 }
 
+
 #messages::-webkit-scrollbar-thumb {
-	background: rgba(255, 255, 255, 0.14);
+	background:
+		linear-gradient(
+			180deg,
+			rgba(212, 175, 55, 0.20),
+			rgba(255, 255, 255, 0.10)
+		);
+
 	border-radius: 20px;
 }
 
+
 #messages::-webkit-scrollbar-thumb:hover {
-	background: rgba(255, 255, 255, 0.24);
+	background:
+		linear-gradient(
+			180deg,
+			rgba(212, 175, 55, 0.35),
+			rgba(255, 255, 255, 0.15)
+		);
 }
 
 
 /* Firefox */
+
 #messages {
 	scrollbar-width: thin;
+
 	scrollbar-color:
-		rgba(255, 255, 255, 0.18)
+		rgba(212, 175, 55, 0.25)
 		transparent;
 }
 
@@ -486,19 +778,30 @@ input:focus {
 
 .message,
 .messageCompressed {
+	position: relative;
+
 	padding: 11px 13px;
 
 	margin-top: 7px;
 	margin-bottom: 7px;
 
-	border: 1px solid rgba(255, 255, 255, 0.055);
+	border: 1px solid var(--message-border);
+
 	border-radius: 12px;
 
-	background: var(--message);
+	background:
+		linear-gradient(
+			145deg,
+			rgba(255, 255, 255, 0.022),
+			transparent 45%
+		),
+		var(--message);
 
 	color: var(--text);
 
-	box-shadow: 0 3px 10px rgba(0, 0, 0, 0.12);
+	box-shadow:
+		0 3px 12px rgba(0, 0, 0, 0.18),
+		inset 0 1px 0 rgba(255, 255, 255, 0.025);
 
 	overflow-wrap: anywhere;
 
@@ -507,6 +810,7 @@ input:focus {
 
 
 /* Sender name */
+
 .message b,
 .messageCompressed b {
 	display: block;
@@ -532,11 +836,19 @@ input:focus {
 
 	border-radius: 7px;
 
-	background: rgba(124, 140, 255, 0.09);
+	background:
+		linear-gradient(
+			90deg,
+			var(--primary-soft),
+			rgba(212, 175, 55, 0.025)
+		);
 
 	color: var(--text-soft);
 
 	font-size: 13px;
+
+	box-shadow:
+		inset 0 0 15px rgba(212, 175, 55, 0.025);
 }
 
 
@@ -557,34 +869,44 @@ input:focus {
 	align-items: center;
 	justify-content: center;
 
-	background: var(--primary);
-	color: white;
+	background:
+		linear-gradient(
+			145deg,
+			var(--gold-light),
+			var(--gold-mid),
+			var(--gold-dark)
+		);
 
-	border: none;
+	color: #0a0905;
+
+	border: 1px solid var(--border-bright);
 
 	box-shadow:
-		0 8px 25px rgba(0, 0, 0, 0.35);
+		0 8px 25px rgba(0, 0, 0, 0.45),
+		0 0 18px rgba(212, 175, 55, 0.10),
+		inset 0 1px 0 rgba(255, 255, 255, 0.35);
 
 	font-size: 18px;
-
-	transition:
-		transform var(--transition),
-		background var(--transition),
-		box-shadow var(--transition);
 }
 
-.fixedButton:hover {
-	background: var(--primary-hover);
 
-	transform: translateY(-2px);
+.fixedButton:hover {
+	background:
+		linear-gradient(
+			145deg,
+			#ffe48f,
+			#e1bc4c,
+			#aa831f
+		);
 
 	box-shadow:
-		0 12px 30px rgba(0, 0, 0, 0.40);
+		0 12px 30px rgba(0, 0, 0, 0.50),
+		0 0 24px rgba(212, 175, 55, 0.16);
 }
 
 
 /* =========================================================
-   14. BOTTOM MESSAGE COMPOSER
+   14. BANNERS
    ========================================================= */
 
 .banner {
@@ -594,23 +916,20 @@ input:focus {
 
 	left: 0;
 	right: 0;
-
 	top: 0;
 
 	padding: 8px 12px;
 
 	min-height: 50px;
 
-	background:
-		rgba(15, 21, 37, 0.92);
+	background: var(--banner);
 
 	border: 1px solid var(--border);
 
-	box-shadow:
-		0 8px 30px rgba(0, 0, 0, 0.30);
+	box-shadow: var(--shadow-banner);
 
-	backdrop-filter: blur(18px);
-	-webkit-backdrop-filter: blur(18px);
+	backdrop-filter: blur(20px);
+	-webkit-backdrop-filter: blur(20px);
 
 	font-size: 16px;
 
@@ -619,6 +938,7 @@ input:focus {
 
 
 /* Bottom banner */
+
 .banner.B {
 	top: auto;
 	bottom: 0;
@@ -644,16 +964,15 @@ input:focus {
 
 
 /* Top banner */
+
 .banner.T {
 	top: 0;
 	bottom: auto;
-
-	left: 0;
-	right: 0;
 }
 
 
 /* Left banner */
+
 .banner.L {
 	top: 0;
 	bottom: 0;
@@ -664,6 +983,7 @@ input:focus {
 
 
 /* Right banner */
+
 .banner.R {
 	top: 0;
 	bottom: 0;
@@ -692,11 +1012,17 @@ input:focus {
 
 	font-size: 14px;
 
-	background: rgba(255, 255, 255, 0.07);
+	background:
+		linear-gradient(
+			180deg,
+			rgba(255, 255, 255, 0.045),
+			rgba(0, 0, 0, 0.12)
+		);
 }
 
 
 /* Send / Call */
+
 .banner.B button {
 	height: 42px;
 
@@ -721,7 +1047,6 @@ input:focus {
 	height: 42px;
 
 	padding: 0;
-
 	margin: 0;
 
 	flex: 0 0 42px;
@@ -734,7 +1059,12 @@ input:focus {
 	border: 1px solid var(--border-strong);
 	border-radius: 10px;
 
-	background: rgba(255, 255, 255, 0.06);
+	background:
+		linear-gradient(
+			145deg,
+			rgba(255, 255, 255, 0.055),
+			rgba(0, 0, 0, 0.12)
+		);
 
 	color: var(--text);
 
@@ -747,17 +1077,27 @@ input:focus {
 	transition:
 		transform var(--transition),
 		background var(--transition),
-		border-color var(--transition);
+		border-color var(--transition),
+		box-shadow var(--transition);
 }
+
 
 .banner.B .icon-btn:hover,
 .banner.B .file-btn:hover {
 	transform: translateY(-1px);
 
-	background: rgba(124, 140, 255, 0.15);
+	background:
+		linear-gradient(
+			145deg,
+			rgba(212, 175, 55, 0.18),
+			rgba(212, 175, 55, 0.06)
+		);
 
-	border-color: rgba(124, 140, 255, 0.40);
+	border-color: var(--border-bright);
+
+	box-shadow: var(--glow-gold);
 }
+
 
 .banner.B .icon-btn:active,
 .banner.B .file-btn:active {
@@ -766,7 +1106,7 @@ input:focus {
 
 
 /* =========================================================
-   17. TOP NAVIGATION / ROOM TITLE
+   17. TOP NAVIGATION
    ========================================================= */
 
 #bannerTop {
@@ -780,6 +1120,7 @@ input:focus {
 
 	padding: 8px 12px;
 }
+
 
 #roomTitle {
 	flex: 1;
@@ -819,6 +1160,7 @@ input:focus {
 	gap: 12px;
 }
 
+
 #rooms > * {
 	min-width: 0;
 }
@@ -831,14 +1173,23 @@ input:focus {
 #adminPanel {
 	width: 100%;
 
-	background: rgba(255, 255, 255, 0.025);
+	background:
+		linear-gradient(
+			145deg,
+			rgba(255, 255, 255, 0.025),
+			rgba(0, 0, 0, 0.08)
+		);
 
 	border: 1px solid var(--border);
 
 	border-radius: var(--radius-md);
 
 	padding: 22px;
+
+	box-shadow:
+		inset 0 1px 0 rgba(255, 255, 255, 0.025);
 }
+
 
 #adminPanel button {
 	margin: 5px 3px;
@@ -846,6 +1197,7 @@ input:focus {
 
 
 /* Account / history / logs */
+
 #accounts,
 #lastSeens,
 #history,
@@ -858,14 +1210,19 @@ input:focus {
 
 	border-radius: var(--radius-md);
 
-	background: rgba(0, 0, 0, 0.12);
+	background:
+		linear-gradient(
+			145deg,
+			rgba(255, 255, 255, 0.018),
+			rgba(0, 0, 0, 0.12)
+		);
 
 	overflow-x: auto;
 }
 
 
 /* =========================================================
-   20. QUERY / POPUP WINDOW
+   20. QUERY / POPUP
    ========================================================= */
 
 .superTop {
@@ -884,25 +1241,52 @@ input:focus {
 
 	transform: translate(-50%, -50%);
 
-	padding: 28px;
+	padding: 30px;
 
 	margin: 0;
 
 	background:
 		linear-gradient(
 			145deg,
-			#1c2640,
-			#11182b
+			rgba(31, 29, 21, 0.98),
+			rgba(10, 10, 8, 0.985)
 		);
 
 	border: 1px solid var(--border-strong);
 
 	border-radius: var(--radius-lg);
 
-	box-shadow: var(--shadow-lg);
+	box-shadow:
+		var(--shadow-lg),
+		0 0 40px rgba(212, 175, 55, 0.035);
+
+	backdrop-filter: blur(24px);
+	-webkit-backdrop-filter: blur(24px);
 
 	animation: popupIn 0.25s ease-out;
 }
+
+
+#queryPage {
+	width: min(500px, calc(100% - 30px));
+}
+
+
+#queryPage::before {
+	content: "";
+
+	position: absolute;
+
+	inset: 0;
+
+	border-radius: inherit;
+
+	pointer-events: none;
+
+	box-shadow:
+		inset 0 1px 0 rgba(255, 255, 255, 0.055);
+}
+
 
 #query_q {
 	color: var(--text) !important;
@@ -914,9 +1298,26 @@ input:focus {
 	line-height: 1.5;
 }
 
+
 #query_i,
 #query_p {
-	background: rgba(0, 0, 0, 0.20);
+	background:
+		linear-gradient(
+			180deg,
+			rgba(255, 255, 255, 0.025),
+			rgba(0, 0, 0, 0.20)
+		);
+}
+
+
+#queryPage input {
+	margin: 8px 0;
+}
+
+
+#queryPage button {
+	margin-top: 8px;
+	min-width: 80px;
 }
 
 
@@ -943,25 +1344,27 @@ input:focus {
 	align-items: center;
 	justify-content: center;
 
-	border: 1px solid rgba(255, 255, 255, 0.15);
+	border: 1px solid var(--border-strong);
 
 	border-radius: 50%;
 
 	background:
 		linear-gradient(
 			145deg,
-			#252c40,
-			#151a29
+			#211d12,
+			#0d0c09
 		);
 
-	color: white;
+	color: var(--primary-hover);
 
 	font-size: 19px;
 
 	cursor: grab;
 
 	box-shadow:
-		0 10px 30px rgba(0, 0, 0, 0.40);
+		0 10px 30px rgba(0, 0, 0, 0.50),
+		0 0 18px rgba(212, 175, 55, 0.06),
+		inset 0 1px 0 rgba(255, 255, 255, 0.06);
 
 	user-select: none;
 
@@ -973,12 +1376,15 @@ input:focus {
 		background var(--transition);
 }
 
+
 #emergencyBubble:hover {
 	transform: scale(1.05);
 
 	box-shadow:
-		0 14px 35px rgba(0, 0, 0, 0.50);
+		0 14px 35px rgba(0, 0, 0, 0.55),
+		0 0 25px rgba(212, 175, 55, 0.12);
 }
+
 
 #emergencyBubble:active {
 	cursor: grabbing;
@@ -1004,25 +1410,192 @@ input:focus {
 .notification {
 	padding: 12px 15px;
 
-	border: 1px solid var(--border);
+	border: 1px solid var(--border-strong);
 
 	border-radius: 10px;
 
-	background: var(--surface-solid);
+	background:
+		linear-gradient(
+			145deg,
+			rgba(30, 28, 20, 0.96),
+			rgba(12, 12, 10, 0.96)
+		);
 
 	color: var(--text);
 
-	box-shadow: var(--shadow-md);
+	box-shadow:
+		var(--shadow-md),
+		inset 0 1px 0 rgba(255, 255, 255, 0.04);
+
+	backdrop-filter: blur(18px);
+	-webkit-backdrop-filter: blur(18px);
 
 	animation: notificationIn 0.4s ease-out;
 }
 
 
 /* =========================================================
-   24. ANIMATIONS
+   24. REPLY PREVIEW INSIDE MESSAGE
+   ========================================================= */
+
+.replyPreview {
+	padding: 7px 10px;
+
+	margin-bottom: 6px;
+
+	border-left: 3px solid var(--primary);
+
+	border-radius: 7px;
+
+	background:
+		linear-gradient(
+			90deg,
+			var(--primary-soft),
+			rgba(212, 175, 55, 0.02)
+		);
+
+	color: var(--text-soft);
+
+	font-size: 12px;
+
+	line-height: 1.4;
+
+	overflow: hidden;
+
+	text-overflow: ellipsis;
+
+	white-space: nowrap;
+
+	box-shadow:
+		inset 0 0 12px rgba(212, 175, 55, 0.025);
+}
+
+
+.replyPreview b {
+	display: inline;
+
+	margin: 0;
+
+	color: var(--primary-hover);
+
+	font-size: 13px;
+
+	font-weight: 700;
+}
+
+
+/* =========================================================
+   25. CONTEXT MENU
+   ========================================================= */
+
+.contextMenu {
+	position: fixed;
+
+	z-index: 10000;
+
+	display: flex;
+
+	flex-direction: column;
+
+	min-width: 175px;
+
+	padding: 6px;
+
+	background:
+		linear-gradient(
+			145deg,
+			rgba(30, 28, 21, 0.97),
+			rgba(10, 10, 8, 0.98)
+		);
+
+	border: 1px solid var(--border-strong);
+
+	border-radius: 12px;
+
+	box-shadow:
+		var(--shadow-lg),
+		0 0 22px rgba(212, 175, 55, 0.035);
+
+	backdrop-filter: blur(20px);
+	-webkit-backdrop-filter: blur(20px);
+
+	animation: menuIn 0.15s ease-out;
+}
+
+
+.contextMenu button {
+	width: 100%;
+
+	margin: 2px 0;
+
+	padding: 9px 12px;
+
+	border: 1px solid transparent;
+
+	border-radius: 7px;
+
+	background: transparent;
+
+	box-shadow: none;
+
+	text-align: left;
+
+	color: var(--text-soft);
+
+	font-size: 13px;
+
+	font-weight: 500;
+}
+
+
+.contextMenu button::before {
+	display: none;
+}
+
+
+.contextMenu button:hover {
+	background:
+		linear-gradient(
+			90deg,
+			var(--primary-soft),
+			transparent
+		);
+
+	border-color: rgba(212, 175, 55, 0.13);
+
+	color: var(--text);
+
+	transform: none;
+
+	box-shadow: none;
+}
+
+
+.contextMenu button:active {
+	background:
+		rgba(212, 175, 55, 0.15);
+
+	transform: scale(0.98);
+}
+
+
+/* =========================================================
+   26. CALL / ADMIN / OTHER PAGES
+   ========================================================= */
+
+#roomsPage,
+#adminPage,
+#callPage {
+	padding-top: 75px;
+}
+
+
+/* =========================================================
+   27. ANIMATIONS
    ========================================================= */
 
 @keyframes pageEnter {
+
 	from {
 		opacity: 0;
 
@@ -1042,6 +1615,7 @@ input:focus {
 
 
 @keyframes popupIn {
+
 	from {
 		opacity: 0;
 
@@ -1061,45 +1635,55 @@ input:focus {
 
 
 @keyframes popIn {
+
 	from {
 		opacity: 0;
+
 		transform: scale(0.8);
 	}
 
 	to {
 		opacity: 1;
+
 		transform: scale(1);
 	}
 }
 
 
 @keyframes messageIn {
+
 	from {
 		opacity: 0;
+
 		transform: translateY(8px);
 	}
 
 	to {
 		opacity: 1;
+
 		transform: translateY(0);
 	}
 }
 
 
 @keyframes notificationIn {
+
 	from {
 		opacity: 0;
+
 		transform: translateX(100%);
 	}
 
 	to {
 		opacity: 1;
+
 		transform: translateX(0);
 	}
 }
 
 
 @keyframes pulse {
+
 	0%,
 	100% {
 		transform: scale(1);
@@ -1113,7 +1697,28 @@ input:focus {
 }
 
 
+@keyframes menuIn {
+
+	from {
+		opacity: 0;
+
+		transform:
+			scale(0.96)
+			translateY(-3px);
+	}
+
+	to {
+		opacity: 1;
+
+		transform:
+			scale(1)
+			translateY(0);
+	}
+}
+
+
 @keyframes spin {
+
 	to {
 		transform: rotate(360deg);
 	}
@@ -1121,7 +1726,7 @@ input:focus {
 
 
 /* =========================================================
-   25. MOBILE RESPONSIVENESS
+   28. MOBILE RESPONSIVENESS
    ========================================================= */
 
 @media (max-width: 700px) {
@@ -1150,7 +1755,7 @@ input:focus {
 	.pageStyleB {
 		width: calc(100% - 14px);
 
-		margin: 12px auto;
+		margin: 85px auto 14px;
 
 		padding: 18px;
 
@@ -1173,7 +1778,8 @@ input:focus {
 	}
 
 
-	/* Bottom composer on small screens */
+	/* Bottom composer */
+
 	.banner.B {
 		gap: 5px;
 
@@ -1209,15 +1815,18 @@ input:focus {
 		flex-basis: 40px;
 	}
 
+
 	#chatPage {
-		padding-Bottom: 90px;
+		padding-bottom: 90px;
 	}
+
 
 	#roomsPage,
 	#adminPage,
 	#callPage {
-		padding-top: 85px;
+		padding-top: 75px;
 	}
+
 
 	#emergencyBubble {
 		right: 12px;
@@ -1240,7 +1849,7 @@ input:focus {
 
 
 /* =========================================================
-   26. VERY SMALL PHONES
+   29. VERY SMALL PHONES
    ========================================================= */
 
 @media (max-width: 420px) {
@@ -1272,7 +1881,7 @@ input:focus {
 
 
 /* =========================================================
-   27. REDUCE ANIMATIONS IF USER REQUESTS IT
+   30. REDUCE MOTION
    ========================================================= */
 
 @media (prefers-reduced-motion: reduce) {
@@ -1281,179 +1890,11 @@ input:focus {
 	*::before,
 	*::after {
 		animation-duration: 0.01ms !important;
+
 		animation-iteration-count: 1 !important;
+
 		scroll-behavior: auto !important;
+
 		transition-duration: 0.01ms !important;
 	}
 }
-
-/* =========================================================
-   REPLY PREVIEW INSIDE MESSAGE
-   ========================================================= */
-
-.replyPreview {
-	padding: 7px 10px;
-	margin-bottom: 6px;
-
-	border-left: 3px solid var(--primary);
-
-	border-radius: 7px;
-
-	background: rgba(124, 140, 255, 0.08);
-
-	color: var(--text-soft);
-
-	font-size: 12px;
-	line-height: 1.4;
-
-	overflow: hidden;
-	text-overflow: ellipsis;
-	white-space: nowrap;
-
-	box-shadow:
-		inset 0 0 12px rgba(124, 140, 255, 0.025);
-}
-
-.replyPreview b {
-	display: inline;
-	margin: 0;
-
-	color: var(--primary-hover);
-
-	font-size: 13px;
-	font-weight: 700;
-}
-
-#queryPage {
-	width: min(500px, calc(100% - 30px));
-}
-
-#queryPage::before {
-	content: "";
-
-	position: absolute;
-
-	inset: 0;
-
-	border-radius: inherit;
-
-	pointer-events: none;
-
-	box-shadow:
-		inset 0 0 0 1px rgba(255, 255, 255, 0.025);
-}
-
-#queryPage input {
-	margin: 8px 0;
-}
-
-#queryPage button {
-	margin-top: 8px;
-	min-width: 80px;
-}
-
-#queryPage {
-	padding: 30px;
-
-	background:
-		linear-gradient(
-			145deg,
-			rgba(30, 40, 67, 0.98),
-			rgba(15, 21, 37, 0.98)
-		);
-
-	border: 1px solid var(--border-strong);
-	border-radius: var(--radius-lg);
-
-	box-shadow: var(--shadow-lg);
-
-	color: var(--text);
-}
-
-.contextMenu {
-	position: fixed;
-	z-index: 1000;
-
-	display: flex;
-	flex-direction: column;
-
-	min-width: 170px;
-
-	padding: 6px;
-
-	background:
-		linear-gradient(
-			145deg,
-			rgba(30, 40, 67, 0.97),
-			rgba(17, 24, 43, 0.97)
-		);
-
-	border: 1px solid var(--border-strong);
-	border-radius: 12px;
-
-	box-shadow: var(--shadow-lg);
-
-	backdrop-filter: blur(18px);
-	-webkit-backdrop-filter: blur(18px);
-
-	animation: menuIn 0.15s ease-out;
-}
-
-.contextMenu button {
-	width: 100%;
-
-	margin: 2px 0;
-	padding: 9px 12px;
-
-	border: 1px solid transparent;
-	border-radius: 7px;
-
-	background: transparent;
-
-	box-shadow: none;
-
-	text-align: left;
-
-	color: var(--text-soft);
-
-	font-size: 13px;
-	font-weight: 500;
-}
-
-.contextMenu button:hover {
-	background: rgba(124, 140, 255, 0.12);
-
-	border-color: rgba(124, 140, 255, 0.18);
-
-	color: var(--text);
-
-	transform: none;
-
-	box-shadow: none;
-}
-
-.contextMenu button:active {
-	background: rgba(124, 140, 255, 0.20);
-
-	transform: scale(0.98);
-}
-
-@keyframes menuIn {
-	from {
-		opacity: 0;
-		transform: scale(0.96) translateY(-3px);
-	}
-
-	to {
-		opacity: 1;
-		transform: scale(1) translateY(0);
-	}
-}
-
-
-#roomsPage,
-#adminPage,
-#callPage {
-	padding-top: 75px;
-}
-
