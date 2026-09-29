@@ -952,6 +952,7 @@ input:focus {
 	display: flex;
 
 	align-items: center;
+	justify-content: space-between;
 
 	gap: 7px;
 
@@ -997,19 +998,22 @@ input:focus {
    15. MESSAGE INPUT
    ========================================================= */
 
-.banner.B #messageInput {
-	flex: 1;
+.banner.B {
+	flex-wrap: nowrap;
+	width: 100%;
+}
 
-	min-width: 0;
+.banner.B #messageInput {
+	flex: 1 1 auto;
+
+	width: 75%;
+	min-width: 0px;
 
 	height: 42px;
-
 	margin: 0;
-
 	padding: 0 13px;
 
 	border-radius: 10px;
-
 	font-size: 14px;
 
 	background:
@@ -1024,9 +1028,10 @@ input:focus {
 /* Send / Call */
 
 .banner.B button {
+	flex: 0 0 auto;
 	height: 42px;
-
 	margin: 0;
+	padding: 0 16px;
 
 	white-space: nowrap;
 

@@ -73,8 +73,8 @@
 			
 			<div id="messages"></div>
 			
-			<label for="scrollToBottom" class="icon-btn" title="goToBottom">🔻</label>
-			<div style="display: none"><button id="scrollToBottom" onclick="scrollToBottomF()" class="fixedButton">🔻</button></div>
+			<label for="scrollToBottom" class="icon-btn" title="goToBottom" style="float: right; font-size: 50px">🔻</label>
+			<button id="scrollToBottom" onclick="scrollToBottomF()" class="fixedButton" hidden>🔻</button>
 			
 			<div id="replyingBar" style="display:none;"></div>
 			
@@ -89,7 +89,7 @@
 				<button onclick="callUser()"> Call </button>
 				
 				<label for="recBut" class="icon-btn" title="Record">🎙</label>
-				<div style="display: none"><button onclick="recordingTrigger()" style="padding: 3px 8px; font-size: 20px" class="icon-btn" id="recBut" style="display: none"></button></div>
+				<button onclick="recordingTrigger()" style="padding: 3px 8px; font-size: 20px" class="icon-btn" id="recBut" hidden></button>
 				
 				<label for="messageFile" class="file-btn" title="Attach-File">📎</label>
 				<input type="file" id="messageFile" multiple hidden>
