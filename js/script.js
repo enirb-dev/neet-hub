@@ -3277,7 +3277,7 @@ window.callUser =
 								remoteDescriptionSet = true;
 								
 								await flushPendingRemoteCandidates();
-								GE("callStatus").textContent = "Connecting...";
+								GE("callStatus").textContent = "Connected";
 							}
 							catch (err) {
 								console.error(
@@ -3451,12 +3451,12 @@ async function acceptCall(rejectBut) {
 		);
 		
 		GE("callHead").textContent = "In Call";
-		GE("callStatus").textContent = "Connecting...";
+		GE("callStatus").textContent = "Connected";
 		GE("callButton").disabled = false;
 		GE("callButton").textContent = "End";
 		GE("callButton").onclick = function() { endCall(); };
 		
-		hideE(rejectBut);
+		_hideE(rejectBut);
 	}
 	
 	catch (err) {
