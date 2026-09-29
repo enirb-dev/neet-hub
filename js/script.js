@@ -939,12 +939,11 @@ function updateReplyUI() {
 	}
 	
 	if (!CACHE.replying) {
-		existing.style.display = "none";
-		existing.textContent = "";
+		_hideE(existing);
 		return;
 	}
 	
-	existing.style.display = "block";
+	_showE(existing);
 	existing.textContent = "";
 	
 	const label = CE("span");
@@ -2037,8 +2036,8 @@ async function uploadToDrive(file) {
 }
 
 async function openRoom(roomHash) {
-	GE("roomsPage").style.display = "none";
-	GE("chatPage").style.display = "block";
+	hideE("roomsPage");
+	showE("chatPage");
 	
 	if (stopMessageListener) {
 		stopMessageListener();
@@ -2098,8 +2097,8 @@ async function openRoom(roomHash) {
 }
 
 window.showRooms = async function() {
-	GE("chatPage").style.display = "none";
-	GE("roomsPage").style.display = "block";
+	hideE("chatPage");
+	showE("roomsPage");
 	
 	CACHE.replying = null;
 	updateReplyUI();
@@ -2242,7 +2241,8 @@ window.logout = async function() {
 	
 	hideDiv("adminPage");
 	
-	GE("loginPage").style.display = "block";
+	showE("loginPage");
+	
 	hideE("callPage");
 	hideE("logPage");
 	
@@ -2257,12 +2257,12 @@ window.logout = async function() {
 
 window.backToAdmin = function() {
 	hideDiv("adminPage");
-	GE("adminPanel").style.display = "block";
+	showE("adminPanel");
 }
 
 window.backToGlobal = function() {
-	GE("roomsPage").style.display = "none";
-	GE("chatPage").style.display = "block";
+	hideE("roomsPage");
+	showE("chatPage");
 	
 	if(GE("cRoom")) { GE("cRoom").remove(); }
 	
@@ -2270,8 +2270,8 @@ window.backToGlobal = function() {
 }
 
 window.showLog = async function() {
-	GE("adminPanel").style.display = "none";
-	GE("logPage").style.display = "block";
+	hideE("adminPanel");
+	showE("logPage");
 	
 	const cont = GE("logDiv");
 	cont.innerHTML = "Loading logs...";
@@ -2323,8 +2323,8 @@ window.showLog = async function() {
 };
 
 window.manageAccounts = async function() {
-	GE("adminPanel").style.display = "none";
-	GE("accountManager").style.display = "block";
+	hideE("adminPanel");
+	showE("accountManager");
 	
 	const cont = GE("accounts");
 	cont.innerHTML = "";
@@ -2369,8 +2369,8 @@ window.manageAccounts = async function() {
 
 
 window.showLastSeens = async function() {
-	GE("adminPanel").style.display = "none";
-	GE("lastSeensPage").style.display = "block";
+	hideE("adminPanel");
+	showE("lastSeensPage");
 	
 	const cont = GE("lastSeens");
 	cont.innerHTML = "";
@@ -2410,8 +2410,8 @@ window.showLastSeens = async function() {
 };
 
 window.managehistory = async function() {
-	GE("adminPanel").style.display = "none";
-	GE("historyManager").style.display = "block";
+	hideE("adminPanel");
+	showE("historyManager");
 	
 	const cont = GE("history");
 	cont.innerHTML = "";
@@ -2617,7 +2617,7 @@ window.createRoom = async function() {
 	but.textContent = "Ok";
 	
 	div.appendChild(txt); div.appendChild(inp); div.appendChild(but);
-	div.style.display = "block";
+	_showE(div);
 	
 	GE("roomsPage").appendChild(div);
 	
@@ -2676,7 +2676,7 @@ window.createRoom = async function() {
 		roomB
 	);
 	
-	div.style.display = "none";
+	_hideE(div);
 	
 	Log(`Room Created: ${room.uid}:${room.name}`);
 	showRooms();
@@ -2801,11 +2801,11 @@ onAuthStateChanged(
 		if (currentUsername == "admin") {
 			//AdminSDK = await import("./swan.js");
 			if (emergencyEnabled) { toggleEmergencyActivity(); }
-			GE("loginPage").style.display = "none";
-			GE("chatPage").style.display = "none";
-			GE("adminPage").style.display = "block";
-			GE("callPage").style.display = "none";
-			GE("adminPanel").style.display = "block";
+			hideE("loginPage");
+			hideE("chatPage");
+			showE("adminPage");
+			hideE("callPage");
+			showE("adminPanel");
 			
 			Log("ADMIN LOGGED IN.");
 			return;
@@ -2815,13 +2815,10 @@ onAuthStateChanged(
 		
 		GE("currentUser").textContent = currentUsername;
 		
-		GE("bannerTop").style.display = "block";
-		GE("bannerChat").style.display = "block";
+		showE("bannerTop"); showE("bannerChat");
+		hideE("loginPage"); hideE("adminPage");
 		
-		GE("loginPage").style.display = "none";
-		GE("adminPage").style.display = "none";
-		
-		GE("chatPage").style.display = "block";
+		showE("chatPage");
 		
 		startIncomingCallListener();
 		startNotificationListener();
