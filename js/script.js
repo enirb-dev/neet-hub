@@ -201,6 +201,7 @@ async function ask(query, type) {
 	
 	hideE("query_i");
 	hideE("query_p");
+	hideE("query_b");
 	
 	if (type == "input" || type == "both") {
 		showE("query_i");
@@ -212,6 +213,8 @@ async function ask(query, type) {
 	
 	showE("query_q");
 	GE("query_q").textContent = query;
+	
+	showE("query_b");
 	
 	while (!queryPageButtonFlag) {
 		await delay(500);
@@ -429,11 +432,13 @@ async function dialog(msg, immediateHide=false) {
 	GE("query_q").textContent = msg;
 	
 	if (!immediateHide) {
+		showE("query_b");
 		while (!queryPageButtonFlag) {
 			await delay(500);
 		}
 	} else {
-		await delay(1000);
+		hideE("query_b");
+		await delay(1500);
 	}
 	
 	queryPageButtonFlag = false;
@@ -3148,14 +3153,12 @@ window.callUser =
 			return;
 		}
 		if (!currentRoomData) {
-			dialog(
-				"Calling is available only in private chats."
-			);
+			dialog("Calling is available only in private chats.", true);
 			return;
 		}
 		
 		if (!currentRoomData.users || currentRoomData.users.length !== 2) {
-			alert("Calling currently supports exactly 2 users per room.");
+			dialog("Calling currently supports exactly 2 users per room.", true);
 			return;
 		}
 		
@@ -3166,7 +3169,7 @@ window.callUser =
 		const otherUser = await getOtherUser();
 		
 		if (!otherUser) {
-			alert("Could not find the other user.");
+			dialog("Could not find the other user.", true);
 			
 			return;
 		}
@@ -3182,7 +3185,7 @@ window.callUser =
 				}
 				
 				if (call.caller === otherUser.uid || call.receiver === otherUser.uid) {
-					alert("That user is already on a call.");
+					dialog("That user is already on a call.", true);
 					return;
 				}
 			}
