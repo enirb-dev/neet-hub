@@ -202,6 +202,7 @@ async function ask(query, type) {
 	hideE("query_i");
 	hideE("query_p");
 	hideE("query_b");
+	hideE("query_b2");
 	
 	if (type == "input" || type == "both") {
 		showE("query_i");
@@ -215,9 +216,14 @@ async function ask(query, type) {
 	GE("query_q").textContent = query;
 	
 	showE("query_b");
+	showE("query_b2");
 	
-	while (!queryPageButtonFlag) {
+	while (queryPageButtonFlag === false) {
 		await delay(500);
+	}
+	
+	if (queryPageButtonFlag === null) {
+		return null;
 	}
 	
 	let result = [];
@@ -232,6 +238,49 @@ async function ask(query, type) {
 	
 	GE("query_i").value = "";
 	GE("query_p").value = "";
+	
+	queryPageButtonFlag = false;
+	hideE("queryPage");
+	
+	return result;
+}
+
+async function askYesNo(query, format=1) {
+	const queryPage = GE("queryPage");
+	
+	showE("queryPage");
+	queryPageButtonFlag = false;
+	
+	hideE("query_i");
+	hideE("query_p");
+	hideE("query_b");
+	hideE("query_b2");
+	
+	showE("query_q");
+	GE("query_q").textContent = query;
+	
+	showE("query_b");
+	showE("query_b2");
+	
+	if (format == 1) {
+		GE("query_b").textContent = "Yes";
+		GE("query_b2").textContent = "No";
+	} else {
+		GE("query_b").textContent = "Confirm";
+		GE("query_b2").textContent = "Cancel";
+	}
+	
+	while (queryPageButtonFlag === false) {
+		await delay(500);
+	}
+	
+	let result;
+	
+	if (queryPageButtonFlag == true) {
+		result = true;
+	} else if (queryPageButtonFlag == null) {
+		result = false;
+	}
 	
 	queryPageButtonFlag = false;
 	hideE("queryPage");
@@ -289,6 +338,44 @@ function createMenu(x, y, options) {	// options = list of (text, action)
 	window.addEventListener("contextmenu", closeMenu);
 	
 	return menu;
+}
+
+
+async function dialog(msg, immediateHide=false) {
+	const queryPage = GE("queryPage");
+	
+	showE("queryPage");
+	
+	queryPageButtonFlag = false;
+	
+	hideE("query_i");
+	hideE("query_p");
+	hideE("query_b2");
+	
+	showE("query_q");
+	GE("query_q").textContent = msg;
+	
+	if (!immediateHide) {
+		showE("query_b");
+		while (!queryPageButtonFlag) {
+			await delay(500);
+		}
+	} else {
+		hideE("query_b");
+		await delay(1500);
+	}
+	
+	queryPageButtonFlag = false;
+	hideE("queryPage");
+}
+
+
+window.queryPageButtonClicked = function(tmp) {
+	if (tmp != true) {
+		queryPageButtonFlag = true;
+	} else {
+		queryPageButtonFlag = null;
+	}
 }
 
 async function initMediaDB() {
@@ -418,37 +505,6 @@ window.addEventListener("scroll", () => {
 	}
 }, true);
 
-async function dialog(msg, immediateHide=false) {
-	const queryPage = GE("queryPage");
-	
-	showE("queryPage");
-	
-	queryPageButtonFlag = false;
-	
-	hideE("query_i");
-	hideE("query_p");
-	
-	showE("query_q");
-	GE("query_q").textContent = msg;
-	
-	if (!immediateHide) {
-		showE("query_b");
-		while (!queryPageButtonFlag) {
-			await delay(500);
-		}
-	} else {
-		hideE("query_b");
-		await delay(1500);
-	}
-	
-	queryPageButtonFlag = false;
-	hideE("queryPage");
-}
-
-
-window.queryPageButtonClicked = function() {
-	queryPageButtonFlag = true;
-}
 
 // ----------------------------------------------------------------
 // ----------------------------------------------------------------
@@ -610,12 +666,12 @@ window.addEventListener("devicemotion", function(event) {
 });
 
 GE("messageFile").addEventListener("pointerdown", function() {
-    fileDialogOpen = true;
+	fileDialogOpen = true;
 });
 
 window.addEventListener("focus", function() {
-    // give the OS dialog a moment to fully close before re-arming
-    setTimeout(() => { fileDialogOpen = false; }, 300);
+	// give the OS dialog a moment to fully close before re-arming
+	setTimeout(() => { fileDialogOpen = false; }, 300);
 });
 
 // ----------------------------------------------------------------
@@ -704,17 +760,9 @@ window.sendMessage = async function(recursive=false) {
 			
 			for (const _user of currentRoomData.users) {
 				
-				if (_user == currentUser.uid) {
-					continue;
-				}
-				
+				if (_user == currentUser.uid) { continue; }
 				const notifRef = push(
-					ref(
-						db,
-						REF.users + "/" +
-						_user +
-						"/notifications"
-					)
+					ref(db, REF.users + "/" + _user + "/notifications")
 				);
 				
 				await set(notifRef, {
@@ -748,19 +796,21 @@ window.sendMessage = async function(recursive=false) {
 	}
 	
 	fileInput.value = "";
-	const replyingTo = CACHE.replying;
+	updateSelectedFilesUI();
 	
+	const replyingTo = CACHE.replying;	
 	CACHE.replying = null;
 	updateReplyUI();
 	
 	
 	for (const file of files) {
 		let options;
+		console.log(file.type);
 		if (file.type.startsWith("image")) {
 			options = ["📷 Image", "image"];
 		} else if (file.type.startsWith("video")) {
 			options = ["📽 Video", "video"];
-		} if (file.type.startsWith("audio")) {
+		} else if (file.type.startsWith("audio")) {
 			options = ["🎶 Audio", "audio"];
 		} else {
 			options = ["📁 File", "file"];
@@ -1898,7 +1948,7 @@ function updateRecordingUI() {
 		el.style.margin = "4px 0";
 		el.style.fontSize = "12px";
 		el.style.borderRadius = "4px";
-		el.style.background = "#fde2e2";
+		el.style.background = "#000000";
 		
 		const label = CE("span");
 		label.id = "recordingIndicatorLabel";
@@ -1913,6 +1963,7 @@ function updateRecordingUI() {
 			event.stopPropagation();
 			CACHE.recorded = null;
 			updateRecordingUI();
+			CACHE.audioChunks = [];
 		};
 		el.appendChild(discardBtn);
 		
@@ -1988,12 +2039,86 @@ window.recordingTrigger = async function() {
 	if (CACHE.recording) {
 		await recordingAction("stop");
 	} else {
+		if (Array.from(GE("messageFile").files).length > 0) {
+			let tt = await askYesNo("A file is currently selected. Discard the file and start recording?");
+			console.log(tt);
+			if (tt != true) {
+				return;
+			} else {
+				GE("messageFile").value = "";
+				updateSelectedFilesUI();
+			}
+		}
+		
+		if (CACHE.audioChunks?.length > 0) {
+			let tt= await askYesNo("A recording is already selected. Discard and start new?");
+			console.log(tt);
+			if (!tt) {
+				return;
+			}
+		}
 		await recordingAction("start");
 	}
 	updateRecordingUI();
 	
 	return;
 };
+
+function updateSelectedFilesUI() {
+	let el = GE("fileIndicator");
+	const fileInput = GE("messageFile");
+	
+	if (CACHE.audioChunks?.length > 0) {
+		CACHE.recorded = null;
+		updateRecordingUI();
+		CACHE.audioChunks = [];
+	}
+	
+	if (!el) {
+		el = CE("div");
+		el.id = "fileIndicator";
+		el.style.display = "none";
+		el.style.padding = "4px 8px";
+		el.style.margin = "4px 0";
+		el.style.fontSize = "12px";
+		el.style.borderRadius = "4px";
+		el.style.background = "#2a2a2a";
+		el.style.color = "#ffffff";
+		
+		const label = CE("span");
+		label.id = "fileIndicatorLabel";
+		el.appendChild(label);
+		
+		const clearBtn = CE("button");
+		clearBtn.id = "fileClearButton";
+		clearBtn.textContent = "❌ Clear";
+		clearBtn.className = "B";
+		clearBtn.style.marginLeft = "8px";
+		clearBtn.onclick = function(event) {
+			event.stopPropagation();
+			fileInput.value = "";
+			updateSelectedFilesUI();
+		};
+		el.appendChild(clearBtn);
+		
+		const input = GE("messageInput");
+		input.parentNode.insertBefore(el, input);
+	}
+	
+	const label = GE("fileIndicatorLabel");
+	const files = Array.from(fileInput.files || []);
+	
+	if (files.length > 0) {
+		el.style.display = "block";
+		const fileNames = files.map(f => f.name).join(", ");
+		const preview = fileNames.length > 35 ? fileNames.slice(0, 32) + "..." : fileNames;
+		label.textContent = `📎 ${files.length} file(s) selected: ${preview}`;
+	} else {
+		el.style.display = "none";
+	}
+}
+
+GE("messageFile").addEventListener("change", updateSelectedFilesUI);
 
 const UPLOADER = "https://script.google.com/macros/s/AKfycbyt9tZA8hsJLoLiNWvgF3U-NO7QOHWe_kCS0RvylN_VNWqAZ6sSGUq6AlQVXpQsrFR4/exec";
 
@@ -2190,7 +2315,10 @@ window.showRooms = async function() {
 			//let tttt = await ask("Delete this Room? (Can't Be Undone) (Type YES)", "input");
 			//let ttt = tttt[0]?.trim().toLowerCase();
 			
-			let ttt = (await ask("Delete this Room? (Can't Be Undone) (Type YES)", "input"))[0].toLowerCase();
+			let ttt = (await ask("Delete this Room? (Can't Be Undone) (Type YES)", "input"))[0];
+			if (ttt === null) return;
+			ttt = ttt.toLowerCase();
+			
 			let ch = (ttt == "yes");
 			
 			if (ch) { deleteRoom(room.uid); }
@@ -2231,6 +2359,9 @@ window.logout = async function() {
 	hideE("chatPage");
 	hideE("adminPage");
 	hideDiv("adminPage");
+	
+	GE("messageFile").value = "";
+	updateSelectedFilesUI();
 	
 	GE("messages").innerHTML = "";
 	
@@ -2572,7 +2703,10 @@ window.system = async function(hash) {
 
 window.admin = async function(hash) {
 	if (hash == 1) {
-		let [user, pass] = await ask("Enter Username And Password to Update", "both");
+		let t = await ask("Enter Username And Password to Update", "both");
+		if (t === null) return;
+		
+		let [user, pass] = t;
 		//let uid = await AdminSDK.getUserByEmail(usernameToEmail(user));
 		
 		//await AdminSDK.resetPassword(uid, pass);
