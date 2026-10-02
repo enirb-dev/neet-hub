@@ -664,13 +664,29 @@ window.addEventListener("devicemotion", function(event) {
 		emergency();
 	}
 });
-
-GE("messageFile").addEventListener("pointerdown", function() {
+function armFileDialog() {
 	fileDialogOpen = true;
+}
+
+const fileInput = GE("messageFile");
+
+function isFileTrigger(e) {
+	return e.target === fileInput || (e.target.closest && e.target.closest('label[for="messageFile"]'));
+}
+
+document.addEventListener("pointerdown", e => { if (isFileTrigger(e)) armFileDialog(); }, true);
+document.addEventListener("click", e => { if (isFileTrigger(e)) armFileDialog(); }, true);
+
+fileInput.addEventListener("change", () => {
+	updateSelectedFilesUI();
+	setTimeout(() => { fileDialogOpen = false; }, 300);
 });
 
-window.addEventListener("focus", function() {
-	// give the OS dialog a moment to fully close before re-arming
+fileInput.addEventListener("cancel", () => {
+	setTimeout(() => { fileDialogOpen = false; }, 300);
+});
+
+window.addEventListener("focus", () => {
 	setTimeout(() => { fileDialogOpen = false; }, 300);
 });
 
@@ -2117,6 +2133,7 @@ function updateSelectedFilesUI() {
 		el.style.display = "none";
 	}
 }
+
 
 GE("messageFile").addEventListener("change", updateSelectedFilesUI);
 
