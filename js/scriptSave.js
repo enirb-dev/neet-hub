@@ -1,4 +1,3 @@
-
 // ----------------------------------------------------------------
 // ----------------------------------------------------------------
 
@@ -453,48 +452,68 @@ function clearFiles() {
 	});
 }
 
+const inflightDownloads = new Map();
+
+async function downloadFromDrive(fId, label) {
+	// Fast path: raw bytes straight from the Drive API (no Apps Script, no base64)
+	if (DRIVE_API_KEY) {
+		try {
+			const r = await window.fetch(
+				`https://www.googleapis.com/drive/v3/files/${encodeURIComponent(fId)}?alt=media&key=${DRIVE_API_KEY}`
+			);
+			
+			if (r.ok) {
+				return await r.blob();
+			}
+			
+			console.warn(label + " Drive API download failed (HTTP " + r.status + "), falling back to Apps Script:", fId);
+		} catch (err) {
+			console.warn(label + " Drive API download error, falling back to Apps Script:", fId, err);
+		}
+	}
+	
+	// Fallback: old Apps Script path (slow: base64 inside JSON)
+	const response = await window.fetch(`${UPLOADER}?fileId=${encodeURIComponent(fId)}`);
+	
+	if (!response.ok) {
+		throw new Error(label + " Download Failed: HTTP " + response.status);
+	}
+	
+	const result = JSON.parse(await response.text());
+	
+	if (result.status !== "success") {
+		throw new Error(label + " Download Failed: " + (result.message || "unknown error"));
+	}
+	
+	const dataRes = await window.fetch(`data:${result.mimeType};base64,${result.base64Data}`);
+	return await dataRes.blob();
+}
+
 async function loadCachedFile(fId, type="Image") {
 	const cached = await getFile(fId);
 	
 	if (cached) {
-		console.log(type + " Loaded from Cache: ", fId);
+		console.log("Loaded from Cache:", fId);
 		return URL.createObjectURL(cached.blob);
 	}
 	
-	console.log(type + " not Cached. Downlaoding: ", fId);
+	// If the same file is requested twice at once, download it only once
+	let pending = inflightDownloads.get(fId);
 	
-	const downloadUrl = `${UPLOADER}?fileId=${encodeURIComponent(fId)}`;
-	const response = await window.fetch(downloadUrl);
-	
-	if (!response.ok) {
-		throw new Error(type + " Download Failed: HTTP ", response.status, " Message: ", response.message || "NaN");
+	if (!pending) {
+		pending = (async () => {
+			console.log("Not cached. Downloading:", fId);
+			const blob = await downloadFromDrive(fId, "File");
+			await saveFile(fId, blob);
+			console.log("Downloaded and cached:", fId);
+			return blob;
+		})();
+		
+		inflightDownloads.set(fId, pending);
+		pending.then(() => inflightDownloads.delete(fId), () => inflightDownloads.delete(fId));
 	}
 	
-	const raw = await response.text();
-	//console.log("Script Response: ", raw);
-	
-	const result = JSON.parse(raw);
-	
-	console.log("Result Data: ", result.base64Data?.length, result.mimeType);
-	
-	//const result = response.json();
-	
-	const binary = atob(result.base64Data);
-	const bytes = new Uint8Array(binary.length);
-	
-	for (let i=0; i< binary.length; i++) {
-		bytes[i] = binary.charCodeAt(i);
-	}
-	
-	const blob = new Blob(
-		[bytes],
-		{ type: result.mimeType }
-	);
-	
-	// const blob = await response.blob();
-	await saveFile(fId, blob);
-	
-	console.log(type + " downloaded and cached: ", fId);
+	const blob = await pending;
 	return URL.createObjectURL(blob);
 }
 
@@ -855,7 +874,9 @@ async function sendFile(file, options=["📷 Image", "image"], replyingTo=null) 
 		try {
 			console.log("Starting upload:", file.name);
 			
-			const uploadResult = await uploadToDrive(file, p => sendingDiv.textContent = \${options[0]} Sending... ${Math.round(p*100)}%`)`);
+			const uploadResult = await uploadToDrive(file, p => {
+				sendingDiv.textContent = `${options[0]} Sending... ${Math.round(p * 100)}%`;
+			});
 			
 			const fId = uploadResult.fileId;
 			const fURL = `https://lh3.googleusercontent.com/d/${fId}=w2000`;
@@ -2137,7 +2158,10 @@ function updateSelectedFilesUI() {
 
 GE("messageFile").addEventListener("change", updateSelectedFilesUI);
 
-const UPLOADER = "https://script.google.com/macros/s/AKfycbyt9tZA8hsJLoLiNWvgF3U-NO7QOHWe_kCS0RvylN_VNWqAZ6sSGUq6AlQVXpQsrFR4/exec";
+const UPLOADER = "https://script.google.com/macros/s/AKfycbz2wxFOg5UpzdqD-t11t874aWQbTPet_GlaxAvFQTCGj0L-tLhcO8O0nIu0VnCvhNOPMA/exec";
+
+// Restricted Google Cloud API key (Drive API only). Leave "" to always use Apps Script.
+const DRIVE_API_KEY = "AIzaSyD2gCvqWrvEIJdKFMhlLc3IgJ8lG7tFd8o";
 
 async function uploadToDrive(file, onProgress) {
 	const mimeType = file.type || "application/octet-stream";
@@ -3803,7 +3827,7 @@ function createRejectButton() {
 		function() {
 			rejectCall();
 		};
-
+	
 	GE("callPage").insertBefore(
 		button,
 		GE("muteButton")
