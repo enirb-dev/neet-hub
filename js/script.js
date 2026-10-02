@@ -839,7 +839,7 @@ async function sendFile(file, options=["📷 Image", "image"], replyingTo=null) 
 		try {
 			console.log("Starting upload:", file.name);
 			
-			const uploadResult = await uploadToDrive(file, p => sendingDiv.textContent = \${options[0]} Sending... ${Math.round(p*100)}%`)`);
+			const uploadResult = await uploadToDrive(file);
 			
 			const fId = uploadResult.fileId;
 			const fURL = `https://lh3.googleusercontent.com/d/${fId}=w2000`;
@@ -2122,40 +2122,41 @@ GE("messageFile").addEventListener("change", updateSelectedFilesUI);
 
 const UPLOADER = "https://script.google.com/macros/s/AKfycbyt9tZA8hsJLoLiNWvgF3U-NO7QOHWe_kCS0RvylN_VNWqAZ6sSGUq6AlQVXpQsrFR4/exec";
 
-async function uploadToDrive(file, onProgress) {
-	const mimeType = file.type || "application/octet-stream";
-	
-	const res = await window.fetch(UPLOADER, {
-		method: "POST",
-		headers: { "Content-Type": "text/plain;charset=utf-8" },
-		body: JSON.stringify({ fileName: file.name, mimeType: mimeType, size: file.size })
-	});
-	
-	const init = await res.json();
-	if (init.status !== "success") { throw new Error(init.message); }
-	
+async function uploadToDrive(file) {
 	return new Promise((resolve, reject) => {
-		const xhr = new XMLHttpRequest();
-		xhr.open("PUT", init.uploadUrl);
+		const reader = new FileReader();
 		
-		xhr.upload.onprogress = (e) => {
-			if (onProgress && e.lengthComputable) { onProgress(e.loaded / e.total); }
-		};
-		
-		xhr.onload = () => {
-			if (xhr.status >= 200 && xhr.status < 300) {
-				try {
-					resolve({ status: "success", fileId: JSON.parse(xhr.responseText).id });
-				} catch (err) {
-					reject(err);
+		reader.onload = async() => {
+			const base64Data = reader.result.split(',')[1];
+			const payload = {
+				fileName: file.name,
+				mimeType: file.type,
+				base64Data: base64Data
+			}
+			
+			try {
+				const response = await window.fetch(UPLOADER, {
+					method: "POST",
+					body: JSON.stringify(payload),
+					headers: {
+						"Content-Type": "text/plain;charset=utf-8"
+					}
+				});
+				
+				const result = await response.json();
+				
+				if (result.status == "success") {
+					resolve(result);
+				} else {
+					reject(new Error(result.message));
 				}
-			} else {
-				reject(new Error("Upload failed: HTTP " + xhr.status + " " + xhr.responseText));
+			} catch (err) {
+				reject(err);
 			}
 		};
 		
-		xhr.onerror = () => reject(new Error("Network or CORS error"));
-		xhr.send(file);
+		reader.onerror = (err) => reject(err);
+		reader.readAsDataURL(file);
 	});
 }
 
