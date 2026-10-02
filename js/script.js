@@ -1330,18 +1330,20 @@ async function startMessageListener(messageRef) {
 			dat.textContent = message.data;
 		} else if (message.type == "image") {
 			dat = CE("div");
-			dat.textContent = "📷 Image Loading...";
+			dat.className = "image-container";
+			
+			const loadingText = CE("span");
+			loadingText.textContent = "📷 Image Loading...";
+			dat.appendChild(loadingText);
 			
 			const imageId = message.meta[0];
-			
 			let tUrl;
 			
 			loadCachedFile(imageId, message.data)
 				.then(url => {
-					dat.textContent = "";
+					loadingText.remove();
 					
 					const imgCont = CE("img");
-					
 					imgCont.src = url;
 					tUrl = url;
 					imgCont.style.cursor = "pointer";
@@ -1365,59 +1367,40 @@ async function startMessageListener(messageRef) {
 						bigImg.src = tUrl;
 						
 						let bs = bigImg.style;
-						
 						bs.maxWidth = "95vw";
-						bs.maxHeight = "95vw";
+						bs.maxHeight = "95vh";
 						bs.objectFit = "contain";
 						bs.borderRadius = "8px";
 						
 						overlay.appendChild(bigImg);
-						
 						document.body.appendChild(overlay);
 						
-						overlay.onclick = () => {
-							overlay.remove();
-						};
+						overlay.onclick = () => overlay.remove();
 					};
 					
 					imgCont.style.maxWidth = "380px";
 					imgCont.style.maxHeight = "550px";
 					imgCont.style.width = "auto";
 					imgCont.style.height = "auto";
-					
 					imgCont.style.display = "block";
 					imgCont.style.borderRadius = "8px";
 					imgCont.style.objectFit = "contain";
 					
 					imgCont.onload = () => {
-						// requestAnimationFrame(() => {
-							// cont.scrollTop = cont.scrollHeight;
-						// });
-						
-						console.log(
-							"Image Loaded:",
-							imgCont.naturalWidth,
-							imgCont.naturalHeight
-						);
+						console.log("Image Loaded:", imgCont.naturalWidth, imgCont.naturalHeight);
 					};
 					
 					imgCont.onerror = function() {
-						console.log(
-							"Image Failed:",
-							imgCont.src
-						);
+						console.log("Image Failed:", imgCont.src);
 					};
-					dat.replaceWith(imgCont);
+					
+					dat.appendChild(imgCont);
 				})
 				.catch(err => {
-					console.error(
-						"Image Failed:",
-						imageId,
-						err
-					);
-					dat.textContent = "📷 Image Failed";
+					console.error("Image Failed:", imageId, err);
+					loadingText.textContent = "📷 Image Failed";
 				});
-		} else if (message.type == "video") {
+				} else if (message.type == "video") {
 			dat = CE("div");
 			dat.textContent = "📽 Video Loading...";
 			
