@@ -1337,13 +1337,15 @@ async function startMessageListener(messageRef) {
 			dat.textContent = message.data;
 			
 			const emojiRegex = /^\p{RGI_Emoji}+$/v;
-			const emojiSize = "50px";    // managed in css
+			const emojiSize = "75px";
 			if (emojiRegex.test(message.data) && [...message.data].length <= 5) {
 				dat.className = "emoji";
 				dat.style.fontFamily = "Noto Color Emoji";
 				dat.style.fontSize = emojiSize;
+				
 				console.log("Loaded Emoji.");
 			}
+			
 		} else if (message.type == "image") {
 			dat = CE("div");
 			dat.className = "image-container";

@@ -1,3 +1,5 @@
+
+
 /* =========================================================
    NEET HUB — OBSIDIAN GOLD
    Luxury Glass UI
@@ -139,6 +141,7 @@ body {
 
 	font-family:
 		Inter,
+		"Noto Color Emoji",
 		Segoe UI,
 		Roboto,
 		Helvetica,
@@ -1929,8 +1932,6 @@ label {
 	display: none;
 }
 
-
-@import url('https://fonts.googleapis.com/css2?family=Noto+Color+Emoji&display=swap');
 
 .emoji {
   font-family: "Noto Color Emoji", sans-serif;
