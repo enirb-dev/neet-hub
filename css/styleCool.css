@@ -1928,3 +1928,12 @@ label {
 .fixedButton::before {
 	display: none;
 }
+
+
+@import url('https://fonts.googleapis.com/css2?family=Noto+Color+Emoji&display=swap');
+
+.emoji {
+  font-family: "Noto Color Emoji", sans-serif;
+  font-weight: 400;
+  font-style: normal;
+}

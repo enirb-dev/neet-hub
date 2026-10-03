@@ -1236,17 +1236,6 @@ async function startMessageListener(messageRef) {
 			if (focussed) {
 				message.seenBy.push(currentUser.uid);
 				markSeen(messageId);
-				// blockLoad = true;
-				
-				// await update(
-					// currentRoom +
-					// "/messages/" +
-					// messageId +
-					// "/seenBy",
-					// message.seenBy
-				// );
-
-				// blockLoad = false;
 			}
 		}
 		
@@ -1346,6 +1335,15 @@ async function startMessageListener(messageRef) {
 		if (message.type == "text") {
 			dat = CE("span");
 			dat.textContent = message.data;
+			
+			const emojiRegex = /^\p{RGI_Emoji}+$/v;
+			const emojiSize = "50px";    // managed in css
+			if (emojiRegex.test(message.data) && [...message.data].length <= 5) {
+				dat.className = "emoji";
+				dat.style.fontFamily = "Noto Color Emoji";
+				dat.style.fontSize = emojiSize;
+				console.log("Loaded Emoji.");
+			}
 		} else if (message.type == "image") {
 			dat = CE("div");
 			dat.className = "image-container";
@@ -1418,7 +1416,7 @@ async function startMessageListener(messageRef) {
 					console.error("Image Failed:", imageId, err);
 					loadingText.textContent = "📷 Image Failed";
 				});
-				} else if (message.type == "video") {
+		} else if (message.type == "video") {
 			dat = CE("div");
 			dat.textContent = "📽 Video Loading...";
 			
