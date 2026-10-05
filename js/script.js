@@ -2421,6 +2421,8 @@ window.showLog = async function(user=false) {
 	} else if (user === true) {			
 		const users = await fetch(REF.users);
 		let memberName = (await ask("Enter UserName:", "input"))[0];
+		if (!memberName) { await dialog("User Not Found.", true); backToAdmin(); return; }
+		
 		memberName = memberName.trim().toLowerCase();
 		
 		let found = false;
