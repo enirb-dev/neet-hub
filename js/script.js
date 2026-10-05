@@ -54,7 +54,7 @@ class RawAdminSDK {}
 let AdminSDK = null;
 
 function triggerUnauthorizedAdminCallAlert(propName, args) {
-	Log(`Unauthorized Admin Call Observed!!! Attempted "${String(propName)}" with "${String(args)}"`);
+	Log(`Unauthorized Admin Call Observed!!! Attempted "${String(propName)}" with "${String(args)}"`, false);
 	signOut(auth);
 }
 
@@ -141,11 +141,11 @@ function hideDiv(divName) {
 	});
 }
 
-async function Log(txt, format=0, inf=0) {
+async function Log(txt, user=true, format=0, inf=0) {
 	let data; let pref3; let pref2; let pref1;
 	const map = {
-		0: '[I]',
-		1: '[E]',
+		0: '[ I ]',
+		1: '[ E ]',
 	}
 	
 	pref3 = format === null ? '' : (map[format] ?? '[U]')
@@ -156,7 +156,10 @@ async function Log(txt, format=0, inf=0) {
 	data = `${pref1} ${pref2} ${pref3} ----- ${txt}`;
 	if ( inf == 1) { console.log(data); }
 	
-	await push(ref(db, REF.log), data);
+	let handle = (!user) ? REF.log : REF.users + "/" + currentUser.uid + "/" + "logs";
+	
+	//console.log(handle);
+	await push(ref(db, handle), data);
 }
 
 function waitForClick(button) {
@@ -598,7 +601,7 @@ window.addEventListener("blur", function() {
 
 window.clearhistory = async function() {
 	await update(REF.globalChat, {});
-	Log("History Cleared.");
+	Log("History Cleared.", false);
 };
 
 window.emergency = function(force=false) {
@@ -639,7 +642,7 @@ window.addEventListener("deviceorientation", function(event) {
 		(beta !== null && Math.abs(beta) > 150) ||
 		(gamma !== null && Math.abs(gamma) > 75 && Math.abs(beta) < 30)
 	) {
-		Log("Orientation Logout!", 0, 1);
+		Log("Orientation Logout!", true, 0, 1);
 		emergency();
 	}
 });
@@ -660,14 +663,13 @@ window.addEventListener("devicemotion", function(event) {
 	const isTiltedSideways = Math.abs(x) > 8.0 && Math.abs(z) < 4.0;
 	
 	if (isFacedown || isTiltedSideways) {
-		Log("Motion Emergency Triggered!", 0, 1);
+		Log("Motion Emergency Triggered!", true, 0, 1);
 		emergency();
 	}
 });
 
 function armFileDialog() {
 	fileDialogOpen = true;
-	console.log("ARM");
 }
 
 const fileInput = GE("messageFile");
@@ -2401,15 +2403,36 @@ window.backToGlobal = function() {
 	openRoom(REF.globalChat)
 }
 
-window.showLog = async function() {
+window.showLog = async function(user=false) {
+	let logBase = null;
+	const cont = GE("logDiv");
+	cont.innerHTML = "Loading logs...";
+	if (!user) {
+		logBase = REF.log;
+	} else {			
+		const users = await fetch(REF.users);
+		let memberName = (await ask("Enter UserName:", "input"))[0];
+		memberName = memberName.trim().toLowerCase();
+		
+		let found = false;
+		if (!users) { await dialog("User Not Found.", true); backToAdmin(); return; }
+		
+		for (const [uid, user] of Object.entries(users)) {
+			if (user.username == memberName) {
+				found = true;
+				logBase = REF.users + "/" + uid + "/" + "logs";
+				break;
+			}
+		}
+		
+		if (!found) { await dialog("User Not Found.", true); backToAdmin(); return; }
+	}
+	
 	hideE("adminPanel");
 	showE("logPage");
 	
-	const cont = GE("logDiv");
-	cont.innerHTML = "Loading logs...";
-	
 	try {
-		const data = await fetch(REF.log);
+		const data = await fetch(logBase);
 		cont.innerHTML = "";
 		
 		if (!data) {
@@ -2418,7 +2441,7 @@ window.showLog = async function() {
 		}
 		
 		const logs = Object.entries(data);
-		logs.sort((a, b) => {
+		/*logs.sort((a, b) => {
 			const timeA =
 				typeof a[1] === "object"
 					? a[1].timestamp
@@ -2430,7 +2453,9 @@ window.showLog = async function() {
 					: 0;
 			
 			return timeB - timeA;
-		});
+		});*/
+		
+		logs.sort((a, b) => b[0].localeCompare(a[0]));
 		
 		for (const [logID, log] of logs) {
 			const div = CE("div");
@@ -2447,7 +2472,7 @@ window.showLog = async function() {
 			
 			cont.appendChild(div);
 		}
-		Log("Opened Log");
+		Log("Opened Log", (logBase == REF.log) ? false : true);
 	} catch (err) {
 		console.error("Could not load logs:", err);
 		cont.textContent = "Error loading logs: " + err.message;
@@ -2496,7 +2521,7 @@ window.manageAccounts = async function() {
 		cont.appendChild(div);
 	}
 	
-	Log("Account Manager Opened.");
+	Log("Account Manager Opened.", false);
 };
 
 
@@ -2538,7 +2563,7 @@ window.showLastSeens = async function() {
 		cont.appendChild(div);
 	}
 	
-	Log("Account Manager Opened.");
+	Log("Account Manager Opened.", false);
 };
 
 window.managehistory = async function() {
@@ -2607,7 +2632,7 @@ window.managehistory = async function() {
 		cont.appendChild(div);
 	}
 	
-	Log("History Manager Opened.");
+	Log("History Manager Opened.", false);
 };
 
 async function deleteAccount(acc) {
@@ -2615,7 +2640,7 @@ async function deleteAccount(acc) {
 	//let uid = await AdminSDK.getUserByEmail(usernameToEmail(acc));
 	//await AdminSDK.completelyDeleteUser(uid);
 	
-	Log(`Deleted Account: ${acc}`);
+	Log(`Deleted Account: ${acc}`, false);
 	manageAccounts();
 }
 
@@ -2624,14 +2649,14 @@ async function deleteRoom(roomHash) {
 	await update(REF.rooms + "/" + roomHash + "/deleted", true);
 	await update(REF.roomsB + "/" + roomHash + "/deleted", true);
 	
-	Log(`Room Deleted: ${roomHash}`);
+	Log(`Room Deleted: ${roomHash}`, false);
 	showRooms();
 }
 
 async function deleteMessageGlobal(msgID) {
 	await remove(ref(db, REF.globalChat + "/messages/" + msgID));
 	
-	Log(`Deleted Message: ${msgID}`);
+	Log(`Deleted Message: ${msgID}`, false);
 	managehistory();
 }
 
@@ -2693,13 +2718,13 @@ async function deleteMessage(msgID) {
 // ----------------------------------------------------------------
 
 window.system = async function(hash) {
-	if (hash == 1) { await update(REF.newReg, true); Log("New User Registration Enabled."); }
-	if (hash == 2) { await update(REF.newReg, false); Log("New User Registration Disabled."); }
-	if (hash == 3) { await update(REF.frozen, true); Log("System Frozen."); }
-	if (hash == 4) { await update(REF.frozen, false); Log("System Unfrozen."); }
-	if (hash == 5) { await remove(ref(db, REF.log)); showLog(); }
+	Log(`System Call Observing: ${hash}`, false);
 	
-	Log(`System Call Observed: ${hash}`);
+	if (hash == 1) { await update(REF.newReg, true); Log("New User Registration Enabled.", false); }
+	if (hash == 2) { await update(REF.newReg, false); Log("New User Registration Disabled.", false); }
+	if (hash == 3) { await update(REF.frozen, true); Log("System Frozen.", false); }
+	if (hash == 4) { await update(REF.frozen, false); Log("System Unfrozen.", false); }
+	if (hash == 5) { await remove(ref(db, REF.log)); showLog(); }
 };
 
 window.admin = async function(hash) {
@@ -2813,6 +2838,7 @@ window.createRoom = async function() {
 	
 	_hideE(div);
 	
+	Log(`Room Created: ${room.uid}:${room.name}`, false);
 	Log(`Room Created: ${room.uid}:${room.name}`);
 	showRooms();
 }
@@ -2878,6 +2904,7 @@ window.register = async function() {
 		);
 		
 		setLoginStatus("Account Created! You can now login.");
+		Log(`User Registered: ${currentUser.uid}:${currentUsername}`, false);
 		Log(`User Registered: ${currentUser.uid}:${currentUsername}`);
 	} catch (err) {
 		setLoginStatus("Error Registering User: " + err.message);
@@ -2911,9 +2938,8 @@ window.login = async function() {
 	
 	} catch (err) {
 		setLoginStatus("Error Loggin In: " + err.message);
+		Log(`Login Attempted User: ${user}`, false);
 	}
-	
-	Log(`Login Attempted User: ${currentUsername}`);
 }
 
 onAuthStateChanged(
@@ -2942,7 +2968,7 @@ onAuthStateChanged(
 			hideE("callPage");
 			showE("adminPanel");
 			
-			Log("ADMIN LOGGED IN.");
+			Log("ADMIN LOGGED IN.", false);
 			return;
 		} else {
 			Log(`Logged User: ${currentUsername}`);
