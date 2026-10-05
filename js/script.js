@@ -156,7 +156,16 @@ async function Log(txt, user=true, format=0, inf=0) {
 	data = `${pref1} ${pref2} ${pref3} ----- ${txt}`;
 	if ( inf == 1) { console.log(data); }
 	
-	let handle = (!user) ? REF.log : REF.users + "/" + currentUser.uid + "/" + "logs";
+	let handle;
+	if (user === false) {
+		handle = REF.log;
+	} else if (user === true) {
+		handle = REF.users + "/" + currentUser.uid + "/" + "logs";
+	} else {
+		handle = user;
+	}
+	
+	//let handle = (!user) ? REF.log : REF.users + "/" + currentUser.uid + "/" + "logs";
 	
 	//console.log(handle);
 	await push(ref(db, handle), data);
@@ -2728,7 +2737,7 @@ window.system = async function(hash) {
 	if (hash == 2) { await update(REF.newReg, false); Log("New User Registration Disabled.", false); }
 	if (hash == 3) { await update(REF.frozen, true); Log("System Frozen.", false); }
 	if (hash == 4) { await update(REF.frozen, false); Log("System Unfrozen.", false); }
-	if (hash == 5) { await remove(ref(db, currentOpenLog)).catch(err => console.log(`Log Deletion Error. (${currentOpenLog})`)); Log("Logs Cleared."); showLog(currentOpenLog); }
+	if (hash == 5) { await remove(ref(db, currentOpenLog)).catch(err => console.log(`Log Deletion Error. (${currentOpenLog})`)); Log("Logs Cleared.", currentOpenLog); showLog(currentOpenLog); }
 };
 
 window.admin = async function(hash) {
