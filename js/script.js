@@ -79,10 +79,10 @@ let currentRoomData = null;
 let DEVMODE = false;
 
 let stopMessageListener = null;
-
 let stopNotificationListener = null;
 
 let queryPageButtonFlag = false;
+let currentOpenLog = null;
 
 // ----------------------------------------------------------------
 // ----------------------------------------------------------------
@@ -2409,7 +2409,7 @@ window.showLog = async function(user=false) {
 	cont.innerHTML = "Loading logs...";
 	if (!user) {
 		logBase = REF.log;
-	} else {			
+	} else if (user === true) {			
 		const users = await fetch(REF.users);
 		let memberName = (await ask("Enter UserName:", "input"))[0];
 		memberName = memberName.trim().toLowerCase();
@@ -2426,7 +2426,11 @@ window.showLog = async function(user=false) {
 		}
 		
 		if (!found) { await dialog("User Not Found.", true); backToAdmin(); return; }
+	} else {
+		logBase = user;
 	}
+	
+	currentOpenLog = logBase;
 	
 	hideE("adminPanel");
 	showE("logPage");
@@ -2724,7 +2728,7 @@ window.system = async function(hash) {
 	if (hash == 2) { await update(REF.newReg, false); Log("New User Registration Disabled.", false); }
 	if (hash == 3) { await update(REF.frozen, true); Log("System Frozen.", false); }
 	if (hash == 4) { await update(REF.frozen, false); Log("System Unfrozen.", false); }
-	if (hash == 5) { await remove(ref(db, REF.log)); showLog(); }
+	if (hash == 5) { await remove(ref(db, currentOpenLog)).catch(err => console.log(`Log Deletion Error. (${currentOpenLog})`)); Log("Logs Cleared."); showLog(currentOpenLog); }
 };
 
 window.admin = async function(hash) {
