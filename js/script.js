@@ -1851,7 +1851,7 @@ async function checkNotifications() {
 	for (const [notifId, notif] of notifU) {
 		if (notifId in notifiedCache) { return; }
 		
-		if (currentRoomData.name = notif[0]) {
+		if (currentRoomData.name == notif[0]) {
 			await remove(ref(REF.users + "/" + currentUser.uid + "/notifications" + notifId));
 			continue;
 		}
@@ -1940,13 +1940,14 @@ window.toggleNotifications = async function() {
 		const permission = await Notification.requestPermission();
 		
 		if (permission != "granted") {
+			console.log("Notif Not gratnted.");
 			return;
 		}
 	}
 	
 	notificationsEnabled = true;
 	GE("notificationToggle").textContent = "Notifications: Enabled";
-
+	console.log("notif succ.");
 }
 
 function updateRecordingUI() {
