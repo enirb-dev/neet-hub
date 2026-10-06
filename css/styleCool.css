@@ -1985,3 +1985,16 @@ label {
 		height: max(200px, calc(100dvh - 298px));
 	}
 }
+
+/* =========================================================
+   32. ADMIN PAGE: NO HEIGHT LIMIT
+   The shared .pageStyleB max-height (500px) was cutting off the
+   admin buttons, so the admin page and the sub-pages inside it
+   (panel, accounts, last seens, history, log) can grow freely.
+   ========================================================= */
+
+#adminPage,
+#adminPage .pageStyleB {
+	max-height: none;
+	overflow: visible;
+}

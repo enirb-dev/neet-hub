@@ -1334,7 +1334,7 @@ async function startMessageListener(messageRef) {
 			formatted = "✔ " + formatted;
 		}
 		
-		time.textContent = (message.deleted) ? "🗑️ " : "" + formatted;
+		time.textContent = ((message.deleted) ? "🗑 " : "") + formatted;
 		
 		time.style.fontSize = "10px";
 		time.style.position = "absolute";
