@@ -2543,6 +2543,7 @@ window.showLog = async function(user=false) {
 };
 
 window.manageAccounts = async function() {
+	showLoadingScreen();
 	hideE("adminPanel");
 	showE("accountManager");
 	
@@ -2584,11 +2585,13 @@ window.manageAccounts = async function() {
 		cont.appendChild(div);
 	}
 	
+	doneLoading();
 	Log("Account Manager Opened.", false);
 };
 
 
 window.showLastSeens = async function() {
+	showLoadingScreen();
 	hideE("adminPanel");
 	showE("lastSeensPage");
 	
@@ -2626,10 +2629,12 @@ window.showLastSeens = async function() {
 		cont.appendChild(div);
 	}
 	
+	doneLoading();
 	Log("Account Manager Opened.", false);
 };
 
 window.managehistory = async function() {
+	showLoadingScreen();
 	hideE("adminPanel");
 	showE("historyManager");
 	
@@ -2695,6 +2700,7 @@ window.managehistory = async function() {
 		cont.appendChild(div);
 	}
 	
+	doneLoading();
 	Log("History Manager Opened.", false);
 };
 
