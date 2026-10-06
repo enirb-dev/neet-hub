@@ -39,7 +39,7 @@
 		<p id="loginStatus"></p>
 		<h1> Neet Hub </h1>
 		<h2> Login </h2>
-		<h3> Stamp: 078 </h3>
+		<h3> Stamp: 080 </h3>
 		
 		
 		
@@ -67,19 +67,22 @@
 			<button onclick="window.location.reload(true)" class="B"> Reload (Press to fix Glitches) </button>
 			<button onclick="toggleEmergencyActivity()" class="B" id="emergencyToggle"> Emergency: Enabled </button>
 			<button onclick="toggleNotifications()" class="B" id="notificationToggle"> Notifications: Disabled </button>
-			<h1 id="roomTitle" style="padding: 3px 5px 3px 5px; margin: 0px"> Neet Hub Chat </h1>
+			<div style="display: flex; align-items: center; white-space: nowrap;">
+				<h1 id="roomTitle" style="padding: 3px 5px; margin: 0; display: inline-flex;">Neet Hub Chat</h1>
+				<span style="display: inline-flex; align-items: center; gap: 4px; margin-left: 0.5em; font-weight: bold;">
+					<span class="onlineDot" id="onlineDot"></span>
+					<span id="onlineHasher"></span>
+				</span>
+			</div>
 		</div>
 		
 		<div id="chatPage" class="pageStyleB">
-			<p>
+			<div style="display: flex; align-items: center; gap: 8px;">
 				Logged in as:
 				<b id="currentUser"></b>
 				<button onclick="logout()"> Logout </button>
-			</p>
-			<b>
-			<div id="onlineHasher"></div>
-			<span class="onlineDot" id="onlineDot"></span>
-			</b>
+				<button onclick="showRooms()" style="margin-left: auto;"> Private Chats </button>
+			</div>
 			
 			<hr>
 			
@@ -107,7 +110,6 @@
 				<input type="file" id="messageFile" multiple hidden>
 			</div>
 			<hr>
-			<button onclick="showRooms()"> Private Chats </button>
 		
 		</div>
 		

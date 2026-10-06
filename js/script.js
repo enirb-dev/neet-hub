@@ -142,7 +142,7 @@ function hideDiv(divName) {
 }
 
 async function Log(txt, user=true, format=0, inf=0) {
-	let data; let pref3; let pref2; let pref1;
+	let data; let pref3; let pref2; let pref1; let str;
 	const map = {
 		0: '[ I ]',
 		1: '[ E ]',
@@ -153,8 +153,8 @@ async function Log(txt, user=true, format=0, inf=0) {
 	pref2 = currentUser ? `${currentUser.uid}:${currentUsername}` : 'SYSTEM';
 	pref1 = new Date().toLocaleString();
 	
-	data = `${pref1} ${pref2} ${pref3} ----- ${txt}`;
-	if ( inf == 1) { console.log(data); }
+	str = `${pref1} ${pref2} ${pref3} ----- ${txt}`;
+	if ( inf == 1) { console.log(str); }
 	
 	let handle;
 	if (user === false) {
@@ -164,6 +164,11 @@ async function Log(txt, user=true, format=0, inf=0) {
 	} else {
 		handle = user;
 	}
+	
+	data = {
+		timestamp: Date.now(),
+		text:      str
+	};
 	
 	//let handle = (!user) ? REF.log : REF.users + "/" + currentUser.uid + "/" + "logs";
 	
@@ -367,20 +372,53 @@ async function dialog(msg, immediateHide=false) {
 	showE("query_q");
 	GE("query_q").textContent = msg;
 	
-	if (!immediateHide) {
+	if (immediateHide === false) {
 		showE("query_b");
 		while (!queryPageButtonFlag) {
 			await delay(500);
 		}
-	} else {
+	} else if (immediateHide === true) {
 		hideE("query_b");
 		await delay(1500);
+	} else {
+		hideE("query_b");
+		(await delay(immediateHide)).catch(err => console.log(`Dialog Error: Invalid Arguement (${immediateHide})`));
 	}
 	
 	queryPageButtonFlag = false;
 	hideE("queryPage");
 }
 
+async function showLoadingScreen() {
+	if (CACHE.loading === true) { return; }
+	CACHE.loading = true;
+	
+	showE("queryPage");
+	
+	hideE("query_b");
+	hideE("query_b2");
+	hideE("query_i");
+	hideE("query_p");
+	showE("query_q");
+	
+	GE("query_q").textContent = "Loading...";
+	
+	let n = 1;
+	while (CACHE.loading !== null) {
+		GE("query_q").textContent = "Loading" + ".".repeat(n);
+		n++;
+		if (n > 3) { n = 1; }
+		await delay(250);
+	}
+	
+	CACHE.loading = false;
+	hideE("queryPage");
+	hideE("query_q");
+}
+
+function doneLoading() {
+	CACHE.loading = null;
+}
 
 window.queryPageButtonClicked = function(tmp) {
 	if (tmp != true) {
@@ -537,6 +575,7 @@ CACHE.replying = null;
 CACHE.hacker = false;
 CACHE.recording = null;
 CACHE.recorded = null;
+CACHE.loading = false;
 
 let currentMenu = null;
 let MDB = null;
@@ -1354,7 +1393,7 @@ async function startMessageListener(messageRef) {
 				dat.style.fontFamily = "Noto Color Emoji";
 				dat.style.fontSize = emojiSize;
 				
-				console.log("Loaded Emoji.");
+				//console.log("Loaded Emoji.");
 			}
 			
 		} else if (message.type == "image") {
@@ -1689,8 +1728,6 @@ async function startMessageListener(messageRef) {
 		}
 	}
 	
-	cont.scrollTop = cont.scrollHeight;
-	
 	const newMessageQuery = query(
 		messageRef,
 		orderByChild("tstamp"),
@@ -1799,6 +1836,8 @@ async function startMessageListener(messageRef) {
 			messageChangedListener = null;
 		}
 	};
+	
+	cont.scrollTop = cont.scrollHeight;
 }
 
 const delay = (ms) => new Promise(resolve => setTimeout(resolve, ms));
@@ -2174,6 +2213,8 @@ async function uploadToDrive(file) {
 }
 
 async function openRoom(roomHash) {
+	showLoadingScreen();
+	
 	hideE("roomsPage");
 	showE("chatPage");
 	
@@ -2232,6 +2273,8 @@ async function openRoom(roomHash) {
 	
 	blockLoad = false;
 	await startMessageListener(ref(db, roomHash + "/messages"));
+	
+	doneLoading();
 }
 
 window.showRooms = async function() {
@@ -2419,6 +2462,7 @@ window.showLog = async function(user=false) {
 	cont.innerHTML = "Loading logs...";
 	if (!user) {
 		logBase = REF.log;
+		showLoadingScreen();
 	} else if (user === true) {			
 		const users = await fetch(REF.users);
 		let memberName = (await ask("Enter UserName:", "input"))[0];
@@ -2438,6 +2482,7 @@ window.showLog = async function(user=false) {
 		}
 		
 		if (!found) { await dialog("User Not Found.", true); backToAdmin(); return; }
+		showLoadingScreen();
 	} else {
 		logBase = user;
 	}
@@ -2457,7 +2502,7 @@ window.showLog = async function(user=false) {
 		}
 		
 		const logs = Object.entries(data);
-		/*logs.sort((a, b) => {
+		logs.sort((a, b) => {
 			const timeA =
 				typeof a[1] === "object"
 					? a[1].timestamp
@@ -2469,9 +2514,9 @@ window.showLog = async function(user=false) {
 					: 0;
 			
 			return timeB - timeA;
-		});*/
+		});
 		
-		logs.sort((a, b) => b[0].localeCompare(a[0]));
+		//logs.sort((a, b) => b[0].localeCompare(a[0]));
 		
 		for (const [logID, log] of logs) {
 			const div = CE("div");
@@ -2493,6 +2538,8 @@ window.showLog = async function(user=false) {
 		console.error("Could not load logs:", err);
 		cont.textContent = "Error loading logs: " + err.message;
 	}
+	
+	doneLoading();
 };
 
 window.manageAccounts = async function() {
@@ -2931,6 +2978,7 @@ window.register = async function() {
 window.login = async function() {
 	emergencyTriggered = false;
 	
+	showLoadingScreen();
 	const user = GE("username").value.trim().toLowerCase();
 	const pass = GE("password").value.trim();
 	
@@ -2955,6 +3003,7 @@ window.login = async function() {
 	} catch (err) {
 		setLoginStatus("Error Loggin In: " + err.message);
 		Log(`Login Attempted User: ${user}`, false);
+		doneLoading();
 	}
 }
 
@@ -2984,6 +3033,8 @@ onAuthStateChanged(
 			hideE("callPage");
 			showE("adminPanel");
 			
+			doneLoading();
+			
 			Log("ADMIN LOGGED IN.", false);
 			return;
 		} else {
@@ -2999,6 +3050,8 @@ onAuthStateChanged(
 		
 		startIncomingCallListener();
 		startNotificationListener();
+		doneLoading();
+		
 		openRoom(REF.globalChat);
 		
 		setLoginStatus("Logged In.");
