@@ -382,7 +382,9 @@ async function dialog(msg, immediateHide=false) {
 		await delay(1500);
 	} else {
 		hideE("query_b");
-		(await delay(immediateHide)).catch(err => console.log(`Dialog Error: Invalid Arguement (${immediateHide})`));
+		await delay(immediateHide).catch(err => {
+			console.log(`Dialog Error: Invalid Argument (${immediateHide})`);
+		});
 	}
 	
 	queryPageButtonFlag = false;
@@ -2794,6 +2796,9 @@ window.system = async function(hash) {
 	if (hash == 3) { await update(REF.frozen, true); Log("System Frozen.", false); }
 	if (hash == 4) { await update(REF.frozen, false); Log("System Unfrozen.", false); }
 	if (hash == 5) { await remove(ref(db, currentOpenLog)).catch(err => console.log(`Log Deletion Error. (${currentOpenLog})`)); Log("Logs Cleared.", currentOpenLog); showLog(currentOpenLog); }
+	
+	if (0 <= hash <= 5) { dialog("Success.", 500); }
+	
 };
 
 window.admin = async function(hash) {
