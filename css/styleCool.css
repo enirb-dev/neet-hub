@@ -70,6 +70,7 @@
 	/* ───────────── Banner / Navigation ───────────── */
 
 	--banner: rgba(6, 6, 5, 0.78);
+	--banner2: rgba(1, 1, 0, 0.99);
 	--shadow-banner: 0 8px 35px rgba(0, 0, 0, 0.65);
 
 
@@ -571,6 +572,8 @@ input:focus {
 	max-height: 500px;
 
 	margin: 110px auto 30px;
+	margin-left: max(60px, auto);
+	margin-right: auto;
 
 	padding: 28px;
 
@@ -918,22 +921,18 @@ input:focus {
 	left: 0;
 	right: 0;
 	top: 0;
-
+	
 	padding: 8px 12px;
-
 	min-height: 50px;
-
+	
 	background: var(--banner);
-
 	border: 1px solid var(--border);
-
+	
 	box-shadow: var(--shadow-banner);
-
 	backdrop-filter: blur(20px);
 	-webkit-backdrop-filter: blur(20px);
-
+	
 	font-size: 16px;
-
 	display: none;
 }
 
@@ -943,10 +942,8 @@ input:focus {
 .banner.B {
 	top: auto;
 	bottom: 0;
-
 	left: 0;
 	right: 0;
-
 	height: auto;
 	min-height: 62px;
 
@@ -956,11 +953,9 @@ input:focus {
 	justify-content: space-between;
 
 	gap: 7px;
-
 	padding: 9px 12px;
 
 	border-radius: 0;
-
 	box-sizing: border-box;
 }
 
@@ -978,9 +973,16 @@ input:focus {
 .banner.L {
 	top: 0;
 	bottom: 0;
-
 	left: 0;
 	right: auto;
+	
+	background: var(--banner2);
+	border-radius: 0;
+	box-sizing: border-box;
+	
+	min-width: 50px;
+	display: flex;
+	flex-direction: column;
 }
 
 
@@ -1997,4 +1999,146 @@ label {
 #adminPage .pageStyleB {
 	max-height: none;
 	overflow: visible;
+}
+
+#roomsPage,
+#roomsPage .pageStyleB {
+	max-height: none;
+	overflow: visible;
+}
+
+/* ==========================================================
+   33. Left Banner (collapsible sidebar)
+   ----------------------------------------------------------
+   - JS (showDiv) sets inline "display:block" on #controlBanner,
+     so the stacking is done by the inner .sideItems flex column,
+     not by the banner itself. Buttons can never share a line.
+   - .collapsed  = icons only
+   - no .collapsed = icon + text ("Settings", "Private")
+   ========================================================== */
+
+#controlBanner {
+	display: none;                       /* JS switches it on after login */
+	z-index: 1000;
+
+	top: var(--topbar-h, 64px);          /* sits under the top banner (set by JS) */
+	bottom: auto;
+	left: 0;
+	right: auto;
+
+	width: 170px;
+	min-width: 0;
+	min-height: 0;
+	padding: 8px 6px;
+
+	overflow: hidden;
+	background: var(--banner2);
+	border-left: none;
+	border-radius: 0 14px 14px 0;
+
+	transition: width 0.22s ease;
+}
+
+#controlBanner.collapsed {
+	width: 54px;
+}
+
+/* Arrow button (top) */
+
+#controlBanner .sideToggle {
+	display: flex;
+	align-items: center;
+	justify-content: center;
+
+	width: 100%;
+	height: 34px;
+	margin: 0 0 8px 0;
+	padding: 0;
+
+	font-size: 15px;
+	line-height: 1;
+}
+
+#controlBanner .sideToggle::before {
+	display: none;
+}
+
+#controlBanner .sideToggle {
+	transition: transform var(--transition), background var(--transition);
+}
+
+/* arrow points right when collapsed, left when expanded */
+#controlBanner:not(.collapsed) .sideToggle {
+	justify-content: flex-end;
+	padding-right: 14px;
+	transform: scaleX(-1);
+}
+
+#controlBanner:not(.collapsed) .sideToggle:hover {
+	transform: scaleX(-1) translateY(-1px);
+}
+
+/* Items: always one per line */
+
+#controlBanner .sideItems {
+	display: flex;
+	flex-direction: column;
+	align-items: stretch;
+	gap: 8px;
+}
+
+#controlBanner .sideItem {
+	display: flex;
+	align-items: center;
+	justify-content: flex-start;
+
+	width: 100%;
+	margin: 0;
+	padding: 9px 8px;
+
+	overflow: hidden;
+	white-space: nowrap;
+	text-align: left;
+}
+
+#controlBanner .sideItem::before {
+	display: none;
+}
+
+#controlBanner .sideIcon {
+	flex: 0 0 24px;
+	width: 24px;
+	text-align: center;
+	font-size: 17px;
+	line-height: 1;
+}
+
+#controlBanner .sideLabel {
+	max-width: 110px;
+	margin-left: 10px;
+	opacity: 1;
+	overflow: hidden;
+	transition: opacity 0.18s ease, max-width 0.22s ease, margin 0.22s ease;
+}
+
+#controlBanner.collapsed .sideLabel {
+	max-width: 0;
+	margin-left: 0;
+	opacity: 0;
+}
+
+/* Keep page content clear of the collapsed bar while it is visible */
+
+body.sidebarOn #appWorking {
+	padding-left: 58px;
+	transition: padding-left 0.22s ease;
+}
+
+/* Desktop/tablet: when the bar is expanded, push the page over with it.
+   (Phones keep the overlay drawer, there is no room to push.)
+   To go back to overlay-only, delete this block. */
+@media (min-width: 701px) {
+	body.sidebarOn.sidebarOpen #appWorking {
+		padding-left: 174px;
+	}
 }

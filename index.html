@@ -63,17 +63,35 @@
 	</div>
 	
 	<div id="appWorking">
-		<div id="bannerTop" class="banner" style="display: none">
-			<button onclick="window.location.reload(true)" class="B"> Reload (Press to fix Glitches) </button>
-			<button onclick="toggleEmergencyActivity()" class="B" id="emergencyToggle"> Emergency: Enabled </button>
-			<button onclick="toggleNotifications()" class="B" id="notificationToggle"> Notifications: Disabled </button>
-			<div style="display: flex; align-items: center; white-space: nowrap;">
-				<h1 id="roomTitle" style="padding: 3px 5px; margin: 0; display: inline-flex;">Neet Hub Chat</h1>
-				<span style="display: inline-flex; align-items: center; gap: 4px; margin-left: 0.5em; font-weight: bold;">
-					<span class="onlineDot" id="onlineDot"></span>
-					<span id="onlineHasher"></span>
-				</span>
+		<div id="banners">
+			<div id="controlBanner" class="banner L collapsed">
+				<button id="sideToggle" class="sideToggle" aria-expanded="false" aria-label="Toggle menu">❯</button> <!-- onclick defined in js -->
+				<div class="sideItems">
+					<button class="sideItem" onclick="showProfile()">
+						<span class="sideIcon">⚙️</span><span class="sideLabel">Settings</span>
+					</button>
+					<button class="sideItem" onclick="showRooms()">
+						<span class="sideIcon">📝</span><span class="sideLabel">Private</span>
+					</button>
+				</div>
 			</div>
+			<div id="bannerTop" class="banner" style="display: none">
+				<button onclick="window.location.reload(true)" class="B"> Reload (Press to fix Glitches) </button>
+				<button onclick="toggleEmergencyActivity()" class="B" id="emergencyToggle"> Emergency: Enabled </button>
+				<button onclick="toggleNotifications()" class="B" id="notificationToggle"> Notifications: Disabled </button>
+				<div style="display: flex; align-items: center; white-space: nowrap;">
+					<h1 id="roomTitle" style="padding: 3px 5px; margin: 0; display: inline-flex;">Neet Hub Chat</h1>
+					<span style="display: inline-flex; align-items: center; gap: 4px; margin-left: 0.5em; font-weight: bold;">
+						<span class="onlineDot" id="onlineDot"></span>
+						<span id="onlineHasher"></span>
+					</span>
+				</div>
+			</div>
+		</div>
+		
+		<div id="profilePage" class="pageStyleB">
+			<h3>Profile Manager</h3>
+			<p> Coming Soon </p>
 		</div>
 		
 		<div id="chatPage" class="pageStyleB">
@@ -81,7 +99,7 @@
 				Logged in as:
 				<b id="currentUser"></b>
 				<button onclick="logout()"> Logout </button>
-				<button onclick="showRooms()" style="margin-left: auto;"> Private Chats </button>
+				<!-- <button onclick="showRooms()" style="margin-left: auto;"> Private Chats </button> -->
 			</div>
 			
 			<hr>

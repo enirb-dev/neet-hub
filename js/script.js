@@ -1,4 +1,3 @@
-
 // ----------------------------------------------------------------
 // ----------------------------------------------------------------
 
@@ -138,6 +137,12 @@ function showE(element) {
 function hideDiv(divName) {
 	Array.from(GE(divName).children).forEach(child => {
 		_hideE(child);
+	});
+}
+
+function showDiv(divName) {
+	Array.from(GE(divName).children).forEach(child => {
+		_showE(child);
 	});
 }
 
@@ -578,6 +583,7 @@ CACHE.hacker = false;
 CACHE.recording = null;
 CACHE.recorded = null;
 CACHE.loading = false;
+CACHE.testing = true;
 
 let currentMenu = null;
 let MDB = null;
@@ -2281,6 +2287,7 @@ async function openRoom(roomHash) {
 
 window.showRooms = async function() {
 	hideE("chatPage");
+	hideE("profilePage");
 	showE("roomsPage");
 	
 	CACHE.replying = null;
@@ -2302,35 +2309,6 @@ window.showRooms = async function() {
 	
 	for (const room of data) {
 		if (!room.users || !room.users.includes(currentUser.uid) || room.deleted) { continue; }
-		
-		/*
-		let tmp = await fetch(REF.roomsB + "/" + room.uid);
-		
-		if (!tmp) {
-			let users = await fetch(REF.users);
-			let usernames = [];
-			
-			for (const user of room.users) {
-				usernames.push(users[user].username);
-			}
-			
-			const roomB = {
-				uid: room.uid,
-				users: room.users,
-				usernames: usernames,
-				name: room.name,
-				deleted: room.deleted,
-				
-				lastMessageMeta: {
-					data: null,
-					senderName: null,
-					tstamp: null
-				}
-			};
-			
-			await set(ref(db, REF.roomsB + "/" + roomB.uid), roomB);
-		}
-		*/
 		
 		const div = CE("div");
 		
@@ -2389,6 +2367,18 @@ window.showRooms = async function() {
 		div.appendChild(name); div.appendChild(last); div.appendChild(brk); div.appendChild(p);
 		div.appendChild(but); div.appendChild(but2); div.appendChild(hrk);
 		cont.appendChild(div);
+	}
+}
+
+window.showProfile = async function() {
+	hideE("chatPage");
+	hideE("roomsPage");
+	showE("profilePage");
+}
+
+window.profile = async function(hash) {
+	if (hash == 1) {
+		
 	}
 }
 
@@ -2990,16 +2980,23 @@ window.login = async function() {
 	emergencyTriggered = false;
 	
 	showLoadingScreen();
-	const user = GE("username").value.trim().toLowerCase();
-	const pass = GE("password").value.trim();
+	let user = GE("username").value.trim().toLowerCase();
+	let pass = GE("password").value.trim();
 	
 	if (!user || !pass) {
-		setLoginStatus("Enter username and Password.");
-		return;
+		if (!CACHE.testing) {
+			setLoginStatus("Enter username and Password.");
+			doneLoading();
+			return;
+		} else {
+			user = "test";
+			pass = "test1234";
+		}
 	}
 	
 	if ((await fetch(REF.frozen) === true) && (user !== "admin")) {
 		setLoginStatus("System Frozen by Admin.");
+		doneLoading();
 		return;
 	}
 	const email = usernameToEmail(user)
@@ -3054,7 +3051,7 @@ onAuthStateChanged(
 		
 		GE("currentUser").textContent = currentUsername;
 		
-		showE("bannerTop"); showE("bannerChat");
+		showDiv("banners"); showE("bannerChat");
 		hideE("loginPage"); hideE("adminPage");
 		
 		showE("chatPage");
@@ -3908,3 +3905,59 @@ GE("callButton").disabled =
 
 // ----------------------------------------------------------------
 // ----------------------------------------------------------------
+
+
+/* =========================================================
+   Left sidebar (#controlBanner): collapse / expand
+   ========================================================= */
+(function initSidebar() {
+	const bar = document.getElementById("controlBanner");
+	const toggleBtn = document.getElementById("sideToggle");
+	const topBar = document.getElementById("bannerTop");
+	if (!bar || !toggleBtn) return;
+
+	function setCollapsed(collapsed) {
+		bar.classList.toggle("collapsed", collapsed);
+		document.body.classList.toggle("sidebarOpen", !collapsed);
+		toggleBtn.setAttribute("aria-expanded", String(!collapsed));
+		toggleBtn.title = collapsed ? "Expand menu" : "Collapse menu";
+	}
+
+	function syncLayout() {
+		const visible = !bar.hidden && getComputedStyle(bar).display !== "none";
+		document.body.classList.toggle("sidebarOn", visible);
+		if (!visible) setCollapsed(true);
+
+		// keep the sidebar just below the top banner
+		if (topBar && topBar.offsetHeight) {
+			document.documentElement.style.setProperty("--topbar-h", (topBar.offsetHeight + 8) + "px");
+		}
+	}
+
+	toggleBtn.addEventListener("click", () => {
+		setCollapsed(!bar.classList.contains("collapsed"));
+	});
+
+	// choosing an item closes the drawer
+	bar.addEventListener("click", (e) => {
+		if (e.target.closest(".sideItem")) setCollapsed(true);
+	});
+
+	// click / tap anywhere outside the bar auto-collapses it
+	document.addEventListener("pointerdown", (e) => {
+		if (!bar.classList.contains("collapsed") && !bar.contains(e.target)) {
+			setCollapsed(true);
+		}
+	}, true);
+
+	// JS elsewhere shows/hides the bar via inline style -> watch for it
+	new MutationObserver(syncLayout).observe(bar, { attributes: true, attributeFilter: ["style", "hidden"] });
+	if (topBar) {
+		new MutationObserver(syncLayout).observe(topBar, { attributes: true, attributeFilter: ["style", "hidden"] });
+		if (window.ResizeObserver) new ResizeObserver(syncLayout).observe(topBar);
+	}
+	window.addEventListener("resize", syncLayout);
+
+	setCollapsed(true);
+	syncLayout();
+})();
