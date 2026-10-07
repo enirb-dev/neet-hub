@@ -583,7 +583,7 @@ CACHE.hacker = false;
 CACHE.recording = null;
 CACHE.recorded = null;
 CACHE.loading = false;
-CACHE.testing = true;
+CACHE.testing = false;
 
 let currentMenu = null;
 let MDB = null;
