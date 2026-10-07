@@ -2384,7 +2384,7 @@ window.showProfile = async function() {
 
 window.profile = async function(hash) {
 	if (hash == 1) {
-		
+		return;
 	}
 }
 
