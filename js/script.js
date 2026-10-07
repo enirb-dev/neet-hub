@@ -2377,7 +2377,7 @@ window.showProfile = async function() {
 	
 	let profileData = GE("profileFunctional")
 	let head = CE("span");
-	head.textContent = `Username:    ${currentUsername}`);
+	head.textContent = `Username:    ${currentUsername}`;
 	
 	profileData.appendChild(head);
 }
