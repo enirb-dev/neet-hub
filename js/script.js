@@ -2374,6 +2374,12 @@ window.showProfile = async function() {
 	hideE("chatPage");
 	hideE("roomsPage");
 	showE("profilePage");
+	
+	let profileData = GE("profileFunctional")
+	let head = CE("span");
+	head.textContent = `Username:    ${currentUsername}`);
+	
+	profileData.appendChild(head);
 }
 
 window.profile = async function(hash) {
@@ -2868,11 +2874,17 @@ window.createRoom = async function() {
 		if (users) {
 			for (const [uid, user] of Object.entries(users)) {
 				if (user.username == memberName) {
-					room.users.push(uid);
-					roomB.users.push(uid);
-					roomB.usernames.push(user.username);
-					found = true;
-					break;
+					if (user?.options?.canMessage == 'all' || user?.options?.knowns.contains(currentUser.uid)) {
+						room.users.push(uid);
+						roomB.users.push(uid);
+						roomB.usernames.push(user.username);
+						found = true;
+						break;
+					} else {
+						txt.textContent = "Not allowed by their Privacy Settings.";
+						inp.value = "";
+						break;
+					}
 				}
 			}
 		}
@@ -2962,7 +2974,8 @@ window.register = async function() {
 				username: currentUsername,
 				createdAt: Date.now(),
 				lastSeen: 0,
-				notifications: {}
+				notifications: {},
+				options: {}
 			}
 			
 		);
