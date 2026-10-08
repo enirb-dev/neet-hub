@@ -2342,10 +2342,28 @@ async function uploadToDrive(file) {
 	});
 }
 
-async function openRoom(roomHash) {
+async function openRoom(roomHash, inspecting=false) {
 	showLoadingScreen();
 	
 	hideE("roomsPage");
+	let list = ["messageInput", "messageSend", "messageCall", "recButLabel", "fileButLabel", "messageFile", "recBut"];
+	if (inspecting) {
+		//hideDiv("allRoomsPage");
+		hideE("adminPage");
+		//hideDiv("adminPage");
+		hideE("allRoomsPage");
+		
+		for (const el of list) {
+			GE(el).disabled = true;
+		}
+		GE("messageInput").value = "Blocked";
+	} else {
+		for (const el of list) {
+			GE(el).disabled = false;
+		}
+		GE("messageInput").value = "";
+	}
+	
 	showE("chatPage");
 	
 	if (stopMessageListener) {
@@ -2575,18 +2593,25 @@ window.logout = async function() {
 };
 
 window.backToAdmin = function() {
-	hideDiv("adminPage");
-	showE("adminPanel");
-}
-
-window.backToGlobal = function() {
-	hideE("roomsPage");
-	showE("chatPage");
+    hideE("chatPage");
+    hideE("allRoomsPage");
+    hideE("logPage");
+    hideE("accountManager");
+    hideE("lastSeensPage");
+    hideE("historyManager");
 	
-	if(GE("cRoom")) { GE("cRoom").remove(); }
+    hideDiv("adminPage");
 	
-	openRoom(REF.globalChat)
-}
+    showE("adminPage");
+    showE("adminPanel");
+    showDiv("adminPanel");
+	
+    if (GE("loggedInText")) GE("loggedInText").textContent = "Logged in as: ";
+    if (GE("logoutButton")) {
+        GE("logoutButton").textContent = "Logout";
+        GE("logoutButton").onclick = window.logout;
+    }
+};
 
 window.showLog = async function(user=false) {
 	let logBase = null;
@@ -2722,6 +2747,61 @@ window.manageAccounts = async function() {
 };
 
 
+window.showAllRooms = async function() {
+	showLoadingScreen();
+	hideE("adminPanel");
+	showE("allRoomsPage");
+	
+	const cont = GE("allRooms");
+	cont.innerHTML = "";
+	
+	const data = await fetch(REF.roomsB);
+	
+	if (!data) {
+		cont.textContent = "No Rooms Created.";
+		doneLoading();
+		return;
+	}
+	
+	const rooms = Object.entries(data);
+	
+	for (const [uid, room] of rooms) {
+        const div = CE("div");
+        div.className = "room";
+        
+        let name = CE("span");
+        name.textContent = room.name || "Unnamed Room";
+        
+        const users = CE("p");
+        const list = Array.isArray(room.usernames) ? room.usernames : (room.users || []);
+        users.textContent = "Users: " + (list.join(", ") || "None");
+        
+        const but = CE("button");
+        but.textContent = "Inspect Room";
+        but.onclick = (event) => {
+            event.stopPropagation();
+			GE("logoutButton").textContent = "Back";
+			GE("logoutButton").onclick = window.backToAdmin;
+			GE("loggedInText").textContent = "";
+			
+            openRoom(REF.rooms + "/" + uid, true);
+        };
+        
+		if (room.deleted) {
+			name.textContent += " <Deleted>";
+		}
+		
+		div.appendChild(name); div.appendChild(CE("br"));
+		div.appendChild(users); div.appendChild(CE("br"));
+		div.appendChild(but);
+        
+        cont.appendChild(div);
+        cont.appendChild(CE("hr"));
+    }
+    
+    doneLoading();
+};
+
 window.showLastSeens = async function() {
 	showLoadingScreen();
 	hideE("adminPanel");
@@ -2734,6 +2814,7 @@ window.showLastSeens = async function() {
 	
 	if (!data) {
 		cont.textContent = "No accounts found.";
+		doneLoading();
 		return;
 	}
 	

@@ -97,9 +97,9 @@
 		
 		<div id="chatPage" class="pageStyleB">
 			<div style="display: flex; align-items: center; gap: 8px;">
-				Logged in as:
+				<span id="loggedInText"> Logged in as: </span>
 				<b id="currentUser"></b>
-				<button onclick="logout()"> Logout </button>
+				<button onclick="logout()" id="logoutButton"> Logout </button>
 				<!-- <button onclick="showRooms()" style="margin-left: auto;"> Private Chats </button> -->
 			</div>
 			
@@ -120,13 +120,13 @@
 					placeholder="Type a message..."
 				>
 				
-				<button onclick="sendMessage()"> Send </button>
-				<button onclick="callUser()"> Call </button>
+				<button onclick="sendMessage()" id="messageSend"> Send </button>
+				<button onclick="callUser()" id="messageCall"> Call </button>
 				
-				<label for="recBut" class="icon-btn" title="Record">🎙</label>
+				<label for="recBut" class="icon-btn" title="Record" id="recButLabel">🎙</label>
 				<button onclick="recordingTrigger()" style="padding: 3px 8px; font-size: 20px" class="icon-btn" id="recBut" hidden></button>
 				
-				<label for="messageFile" class="file-btn" title="Attach-File">📎</label>
+				<label for="messageFile" class="file-btn" title="Attach-File" id="fileButLabel">📎</label>
 				<input type="file" id="messageFile" multiple hidden>
 			</div>
 			<hr>
@@ -158,6 +158,9 @@
 				<button onclick="showLastSeens()"> Last Seens </button>
 				<hr>
 				
+				<button onclick="showAllRooms()"> Inspect All Rooms </button>
+				<hr>
+				
 				<button onclick="system(1)"> Enable New User Registration </button>
 				<button onclick="system(2)"> Disable New User Registration </button>
 				<hr>
@@ -178,6 +181,13 @@
 				<button onclick="admin(1)"> Reset a Password </button>
 				
 				<div id="accounts"></div>
+			</div>
+			
+			<div id="allRoomsPage" class="pageStyleB">
+				<h1> All Created Rooms </h1>
+				<button onclick="backToAdmin()"> Back </button>
+				
+				<div id="allRooms"></div>
 			</div>
 			
 			<div id="lastSeensPage" class="pageStyleB">
