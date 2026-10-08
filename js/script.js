@@ -16,6 +16,7 @@ import {
 	orderByChild,
 	limitToLast,
 	endAt,
+	equalTo,
 	onChildChanged,
 	startAt,
 	runTransaction
@@ -583,7 +584,7 @@ CACHE.hacker = false;
 CACHE.recording = null;
 CACHE.recorded = null;
 CACHE.loading = false;
-CACHE.testing = false;
+CACHE.testing = true;
 
 let currentMenu = null;
 let MDB = null;
@@ -1012,7 +1013,12 @@ async function chatPageUpdate() {
 			let seenOther = await fetch(REF.users + "/" + otherUser + "/lastSeen") || 0;
 			
 			if (Date.now() - seenOther <= 3000) {
-				GE("onlineHasher").textContent = "Online"; showE("onlineDot");
+				if (CACHE.typingIndicator) {
+					GE("onlineHasher").textContent = "Typing...";
+				} else {
+					GE("onlineHasher").textContent = "Online";
+				}
+				showE("onlineDot");
 			} else {
 				GE("onlineHasher").textContent = "Offline"; hideE("onlineDot");
 			}
@@ -1052,6 +1058,12 @@ function setupMessageMenu(div, messageId, message) {
 						deleteMessage(messageId);
 					}
 				],
+				[
+					"Pin/Unpin",
+					function() {
+						togglePinMessage(messageId);
+					}
+				]
 			]
 		);
 	});
@@ -1197,6 +1209,103 @@ async function loadOlderMessages() {
 	}
 }
 
+// ---- Flash highlight for a focused message (style injected once) ----
+(function() {
+	if (document.getElementById("msgFlashStyle")) return;
+	const st = document.createElement("style");
+	st.id = "msgFlashStyle";
+	st.textContent = `
+		@keyframes msgFlash {
+			0%, 100% { box-shadow: inset 0 0 0 0 rgba(255,215,0,0); filter: brightness(1); }
+			20%, 60% { box-shadow: inset 0 0 0 4px #ffd700, inset 0 0 24px rgba(255,215,0,0.55); filter: brightness(1.35); }
+			40%, 80% { box-shadow: inset 0 0 0 2px rgba(255,215,0,0.4); filter: brightness(1.1); }
+		}
+		.msgFlash { animation: msgFlash 1.8s ease-in-out; }
+	`;
+	document.head.appendChild(st);
+})();
+
+function flashMessage(el) {
+	el.classList.remove("msgFlash");
+	void el.offsetWidth; // restart the animation if it is already running
+	el.classList.add("msgFlash");
+	setTimeout(() => el.classList.remove("msgFlash"), 1900);
+}
+
+// Scrolls to a message, loading older chunks first if it is not on screen yet.
+// Used by the pinned bar and by reply banners. Returns true if the message was shown.
+async function focusMessage(targetId) {
+	const cont = GE("messages");
+	const find = () => cont.querySelector(`[data-message-id="${targetId}"]`);
+	
+	let target = find();
+	let loadedMore = false;
+	
+	if (!target) {
+		if (!currentRoom) return false;
+		const roomAtStart = currentRoom;
+		
+		// the target's timestamp tells us how far back we need to load
+		const ts = await fetch(currentRoom + "/messages/" + targetId + "/tstamp");
+		if (roomAtStart !== currentRoom) return false;
+		
+		if (ts === null) {
+			dialog("That message no longer exists.", true);
+			return false;
+		}
+		
+		cont.style.cursor = "progress";
+		document.body.style.cursor = "progress";
+		
+		try {
+			let stalls = 0;
+			
+			while (
+				!target &&
+				hasMoreMessages &&
+				oldestMessageTime !== null &&
+				oldestMessageTime > ts
+			) {
+				if (roomAtStart !== currentRoom) return false;
+				
+				// a scroll-triggered load may already be running
+				while (loadingOlderMessages) await delay(50);
+				
+				const before = oldestMessageTime;
+				await loadOlderMessages();
+				loadedMore = true;
+				
+				target = find();
+				
+				if (oldestMessageTime === before) {
+					stalls++;
+					if (stalls >= 3) break;
+				} else {
+					stalls = 0;
+				}
+			}
+		} finally {
+			cont.style.cursor = "";
+			document.body.style.cursor = "";
+		}
+		
+		target = find();
+	}
+	
+	if (!target) {
+		dialog("Could not find that message (it may have been deleted).", true);
+		return false;
+	}
+	
+	// instant jump after loading (smooth scroll fights with the layout shifts), smooth otherwise
+	target.scrollIntoView({
+		behavior: loadedMore ? "auto" : "smooth",
+		block: "center"
+	});
+	flashMessage(target);
+	return true;
+}
+
 function updateSenderNameVisibility(div) {
 	const nameEl = div.querySelector(".sender-name");
 	if (!nameEl) return;
@@ -1219,6 +1328,24 @@ window.scrollToBottomF = function() {
 		});
 	});
 }
+
+async function updateTyping() {
+	if (!currentUser || !currentRoomData) return;
+	let t = await fetch(REF.rooms + "/" + currentRoomData.uid + "/typing");
+	if (!t) return;
+	
+	if (Date.now() - t.at < 500) {
+		if (t.by != currentUser.uid) {
+			CACHE.typingIndicator = true;
+			return;
+		}
+	}
+	
+	CACHE.typingIndicator = false;
+	await delay(100);
+}
+
+setInterval(updateTyping, 500);
 
 let renderMessage = null;
 async function startMessageListener(messageRef) {
@@ -1317,6 +1444,7 @@ async function startMessageListener(messageRef) {
 		name.style.marginBotton = "10px";
 		
 		div.dataset.messageId = messageId;
+		div.dataset.pinned = message.pinned ? "1" : "0";
 		div.dataset.senderName = message.senderName || "";
 		
 		const time = CE("span");
@@ -1370,19 +1498,7 @@ async function startMessageListener(messageRef) {
 			
 			replyBox.onclick = function(event) {
 				event.stopPropagation();
-				const targetId = message.replyingTo[0];
-				const target =
-					GE("messages")
-					.querySelector(
-						`[data-message-id="${targetId}"]`
-					);
-				
-				if (target) {
-					target.scrollIntoView({
-						behavior: "smooth",
-						block: "center"
-					});
-				}
+				focusMessage(message.replyingTo[0]);
 			};
 			
 			div.appendChild(replyBox);
@@ -1790,6 +1906,12 @@ async function startMessageListener(messageRef) {
 			}
 
 			if (oldDiv) {
+				const nowPinned = message.pinned ? "1" : "0";
+				if (oldDiv.dataset.pinned !== nowPinned) {
+					oldDiv.dataset.pinned = nowPinned;
+					refreshPinned();
+				}
+				
 				const time =
 					oldDiv.querySelector(".message-time");
 
@@ -1945,7 +2067,7 @@ async function checkNotifications() {
 	}
 }
 
-setInterval(updateLastSeen, 2000);
+setInterval(updateLastSeen, 500);
 // setInterval(checkNotifications, 500);
 
 async function notify(head, notif) {
@@ -2234,6 +2356,8 @@ async function openRoom(roomHash) {
 	currentRoom = roomHash;
 	currentRoomData = null;
 	
+	if (GE("pinnedUI")) { GE("pinnedUI").style.display = "none"; }
+	
 	CACHE.replying = null;
 	updateReplyUI();
 	
@@ -2281,9 +2405,19 @@ async function openRoom(roomHash) {
 	
 	blockLoad = false;
 	await startMessageListener(ref(db, roomHash + "/messages"));
+	refreshPinned();
 	
 	doneLoading();
 }
+
+GE("messageInput").addEventListener("input", async (event) => {
+	if (GE("messageInput").value == "") return;
+	if (!currentRoomData) return;
+	if (!currentUser) return;
+	
+	await update(REF.rooms + "/" + currentRoomData.uid + "/typing/by", currentUser.uid);
+	await update(REF.rooms + "/" + currentRoomData.uid + "/typing/at", Date.now());
+});
 
 window.showRooms = async function() {
 	hideE("chatPage");
@@ -2780,6 +2914,80 @@ async function deleteMessage(msgID) {
 	}
 }
 
+async function togglePinMessage(msgID) {
+	if (!currentRoom) return;
+	
+	if (!currentRoomData && !CACHE.hacker) {
+		dialog("Not Allowed In Global Chat.", true);
+		return;
+	}
+	
+	// currentRoom is the path of the open chat (global or private room)
+	const p = currentRoom + "/messages/" + msgID + "/pinned";
+	const t = await fetch(p);
+	
+	await update(p, t ? false : true);
+	await refreshPinned();
+}
+
+async function refreshPinned() {
+	const tt = GE("pinnedUI");
+	if (!tt || !currentRoom) return;
+	
+	const roomAtStart = currentRoom;
+	
+	let data = [];
+	
+	try {
+		const snap = await get(query(
+			ref(db, currentRoom + "/messages"),
+			orderByChild("pinned"),
+			equalTo(true)
+		));
+		
+		const list = [];
+		if (snap.exists()) {
+			snap.forEach(function(child) {
+				const m = child.val();
+				if (m && !m.deleted) list.push([child.key, m.tstamp || 0]);
+			});
+		}
+		list.sort((a, b) => a[1] - b[1]);
+		data = list.map(x => x[0]);
+	} catch (err) {
+		// No ".indexOn": "pinned" rule yet -> fall back to the messages already on screen
+		console.warn("refreshPinned: add .indexOn pinned to your rules. Using loaded messages only.", err);
+		data = Array.from(GE("messages").querySelectorAll('[data-pinned="1"]'))
+			.map(d => d.dataset.messageId);
+	}
+	
+	// user switched chat while we were fetching
+	if (roomAtStart !== currentRoom) return;
+	
+	CACHE.pinnedHash = 0;
+	
+	if (data.length === 0) {
+		tt.style.display = "none";
+		tt.textContent = "";
+		tt.onclick = null;
+		return;
+	}
+	
+	tt.style.display = "block";
+	tt.style.cursor = "pointer";
+	tt.textContent = `📌 ${data.length} Message${data.length > 1 ? "s" : ""} Pinned`;
+	
+	tt.onclick = function(event) {
+		event.stopPropagation();
+		
+		// jump to newest pinned first, then step backwards
+		const idx = data.length - 1 - (CACHE.pinnedHash % data.length);
+		focusMessage(data[idx]);
+		
+		CACHE.pinnedHash = (CACHE.pinnedHash + 1) % data.length;
+	};
+}
+
 
 // ----------------------------------------------------------------
 // ----------------------------------------------------------------
@@ -2821,7 +3029,12 @@ window.createRoom = async function() {
 		users: [],
 		messages: {},
 		name: null,
-		deleted: false
+		deleted: false,
+		pinned: {},
+		typing: {
+			by: null,
+			at: null
+		}
 	}
 	
 	const roomB = {
