@@ -117,22 +117,22 @@ async function fetch(key) {
 	return null;
 }
 
-function _hideE(element) {
-	element.style.display = "none";
-	element.hidden = true;
+function _hideE(el) {
+	el.style.display = "none";
+	el.hidden = true;
 }
 
-function _showE(element) {
-	element.style.display = "block";
-	element.hidden = false;
+function _showE(el) {
+	el.style.display = "block";
+	el.hidden = false;
 }
 
-function hideE(element) {
-	_hideE(GE(element));
+function hideE(el) {
+	_hideE(GE(el));
 }
 
-function showE(element) {
-	_showE(GE(element));
+function showE(el) {
+	_showE(GE(el));
 }
 
 function hideDiv(divName) {
