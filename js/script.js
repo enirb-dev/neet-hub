@@ -511,15 +511,19 @@ function clearFiles() {
 	});
 }
 
-async function loadCachedFile(fId, type="Image") {
-	const cached = await getFile(fId);
+async function loadCachedFile(fId, type="Image", forceRedownload=false) {
+	const cached = (!forceRedownload) ? (await getFile(fId)) : null;
 	
 	if (cached) {
 		console.log(type + " Loaded from Cache: ", fId);
 		return URL.createObjectURL(cached.blob);
 	}
 	
-	console.log(type + " not Cached. Downlaoding: ", fId);
+	if (!forceRedownload) {
+		console.log(type + " not Cached. Downlaoding: ", fId);
+	} else {
+		console.log(type + " force redownlaoding: ", fId);
+	}
 	
 	const downloadUrl = `${UPLOADER}?fileId=${encodeURIComponent(fId)}`;
 	const response = await window.fetch(downloadUrl);
