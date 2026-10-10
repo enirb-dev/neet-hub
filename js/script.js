@@ -2527,7 +2527,9 @@ window.showProfile = async function() {
 	hideE("roomsPage");
 	showE("profilePage");
 	
-	let profileData = GE("profileFunctional")
+	let profileData = GE("profileFunctional");
+	profileData.value = "";
+	
 	let head = CE("span");
 	head.textContent = `Username:    ${currentUsername}`;
 	
