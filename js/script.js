@@ -517,6 +517,7 @@ async function loadCachedFile(fId, type="Image", forceRedownload=false) {
 	if (cached) {
 		console.log(type + " Loaded from Cache: ", fId);
 		return URL.createObjectURL(cached.blob);
+		
 	}
 	
 	if (!forceRedownload) {
