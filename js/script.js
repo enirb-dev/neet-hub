@@ -1355,6 +1355,7 @@ setInterval(updateTyping, 500);
 const URL_REGEX = /\b((?:https?:\/\/|www\.)[^\s<>"']+)/gi;
 
 function linkify(container, text) {
+	container.textContent = "";
 	let lastIndex = 0;
 	
 	for (const match of text.matchAll(URL_REGEX)) {
@@ -1585,8 +1586,9 @@ async function startMessageListener(messageRef) {
 			
 			const emojiRegex = /^\p{RGI_Emoji}+$/v;
 			const emojiSize = "75px";
+			dat.textContent = message.data;
+			
 			if (emojiRegex.test(message.data) && [...message.data].length <= 5) {
-				dat.textContent = message.data;
 				dat.className = "emoji";
 				dat.style.fontFamily = "Noto Color Emoji";
 				dat.style.fontSize = emojiSize;
