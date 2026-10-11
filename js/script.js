@@ -1352,6 +1352,75 @@ async function updateTyping() {
 
 setInterval(updateTyping, 500);
 
+const URL_REGEX = /\b((?:https?:\/\/|www\.)[^\s<>"']+)/gi;
+
+function linkify(container, text) {
+	let lastIndex = 0;
+	
+	for (const match of text.matchAll(URL_REGEX)) {
+		let raw = match[0];
+		const start = match.index;
+		
+		// Trim trailing punctuation that is probably part of the sentence
+		let trailing = "";
+		while (/[.,!?;:)\]}'"]$/.test(raw)) {
+			// Keep a closing ")" if the URL has a matching "("
+			if (raw.endsWith(")") && (raw.match(/\(/g) || []).length >= (raw.match(/\)/g) || []).length) break;
+			trailing = raw.slice(-1) + trailing;
+			raw = raw.slice(0, -1);
+		}
+		
+		// Text before the link
+		if (start > lastIndex) {
+			container.appendChild(document.createTextNode(text.slice(lastIndex, start)));
+		}
+		
+		const href = /^https?:\/\//i.test(raw) ? raw : "https://" + raw;
+		
+		// Only allow http(s) links
+		let safe = true;
+		try {
+			const u = new URL(href);
+			safe = u.protocol === "http:" || u.protocol === "https:";
+		} catch {
+			safe = false;
+		}
+		
+		// temporarily allow all links
+		safe = true;
+		
+		if (safe) {
+			const a = CE("a");
+			a.href = href;
+			a.textContent = raw;
+			a.target = "_blank";
+			a.rel = "noopener noreferrer";
+			a.style.color = "#4da3ff";
+			a.style.textDecoration = "underline";
+			a.style.wordBreak = "break-all";
+			
+			// Don't trigger the message menu / reply handlers when tapping a link
+			a.onclick = (e) => e.stopPropagation();
+			
+			container.appendChild(a);
+		} else {
+			container.appendChild(document.createTextNode(raw));
+		}
+		
+		// Punctuation after the link goes back as plain text
+		if (trailing) {
+			container.appendChild(document.createTextNode(trailing));
+		}
+		
+		lastIndex = start + match[0].length;
+	}
+	
+	// Remaining text after the last link
+	if (lastIndex < text.length) {
+		container.appendChild(document.createTextNode(text.slice(lastIndex)));
+	}
+}
+
 let renderMessage = null;
 async function startMessageListener(messageRef) {
 	if (stopMessageListener) {
@@ -1523,6 +1592,9 @@ async function startMessageListener(messageRef) {
 				dat.style.fontSize = emojiSize;
 				
 				//console.log("Loaded Emoji.");
+			} else {
+				linkify(dat, message.data);
+				div.style.overflowWrap = "anywhere";
 			}
 			
 		} else if (message.type == "image") {
