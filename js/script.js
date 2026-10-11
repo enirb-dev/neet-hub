@@ -1582,11 +1582,11 @@ async function startMessageListener(messageRef) {
 		
 		if (message.type == "text") {
 			dat = CE("span");
-			dat.textContent = message.data;
 			
 			const emojiRegex = /^\p{RGI_Emoji}+$/v;
 			const emojiSize = "75px";
 			if (emojiRegex.test(message.data) && [...message.data].length <= 5) {
+				dat.textContent = message.data;
 				dat.className = "emoji";
 				dat.style.fontFamily = "Noto Color Emoji";
 				dat.style.fontSize = emojiSize;
