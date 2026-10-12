@@ -99,7 +99,7 @@ const REF = {
 	calls: BASE + "/calls",
 	log: BASE + "/log",
 	roomsB: BASE + "/roomsB",
-	reactions: BASE + "/reactions"
+	reactions: BASE + "/config/reactions"
 };
 
 function GE(element) { return document.getElementById(element); }
@@ -3193,14 +3193,14 @@ CACHE.rxnList = null;
 	st.id = "rxnStyle";
 	st.textContent = `
 		.reactions { display: flex; flex-wrap: wrap; gap: 4px; margin-top: 4px; }
-		.rxnChip {
+		.rxnCard {
 			display: inline-flex; align-items: center; gap: 3px;
 			padding: 1px 7px; border-radius: 12px; font-size: 13px;
 			background: rgba(255,255,255,0.10); border: 1px solid #916a0a;
 			cursor: pointer; user-select: none;
 		}
-		.rxnChip.mine { background: rgba(184,134,11,0.28); border-color: #b8860b; }
-		.rxnChip .rxnCount { font-size: 11px; opacity: 0.85; }
+		.rxnCard.mine { background: rgba(184,134,11,0.28); border-color: #b8860b; }
+		.rxnCard .rxnCount { font-size: 11px; opacity: 0.85; }
 	`;
 	document.head.appendChild(st);
 })();
@@ -3218,13 +3218,13 @@ function normalizeReactions(raw) {
 
 async function getReactionList() {
 	if (CACHE.rxnList) return CACHE.rxnList;
-
+	
 	let raw = null;
 	try { raw = await fetch(REF.reactions); } catch (err) { console.warn("Reaction list fetch failed:", err); }
-
+	
 	let list = !raw ? [] : (Array.isArray(raw) ? raw : Object.values(raw));
 	list = list.filter(r => typeof r === "string" && r.length > 0);
-
+	
 	CACHE.rxnList = list.length ? list : DEFAULT_REACTIONS;
 	return CACHE.rxnList;
 }
@@ -3274,7 +3274,7 @@ function myReactionCount(msgId) {
 	return normalizeReactions(CACHE.reactions[msgId]).filter(r => r[1] === currentUser.uid).length;
 }
 
-// Draws the reaction chips for one message div from CACHE.reactions.
+// Draws the reaction cards for one message div from CACHE.reactions.
 function renderReactions(div, msgId) {
 	if (!div) return;
 
@@ -3308,32 +3308,32 @@ function renderReactions(div, msgId) {
 	}
 
 	for (const [rxn, users] of groups) {
-		const chip = CE("span");
-		chip.className = "rxnChip";
+		const card = CE("span");
+		card.className = "rxnCard";
 
 		const mine = currentUser && users.some(u => u.uid === currentUser.uid);
-		if (mine) chip.classList.add("mine");
+		if (mine) card.classList.add("mine");
 
 		const em = CE("span");
 		em.textContent = rxn;
-		chip.appendChild(em);
+		card.appendChild(em);
 
 		if (users.length > 1) {
 			const count = CE("span");
 			count.className = "rxnCount";
 			count.textContent = users.length;
-			chip.appendChild(count);
+			card.appendChild(count);
 		}
 
-		chip.title = users.map(u => u.name || "Unknown").join(", ");
+		card.title = users.map(u => u.name || "Unknown").join(", ");
 
-		// tap a chip to add / remove your own reaction of that emoji
-		chip.onclick = function(event) {
+		// tap a card to add / remove your own reaction of that emoji
+		card.onclick = function(event) {
 			event.stopPropagation();
 			toggleReaction(msgId, rxn);
 		};
 
-		bar.appendChild(chip);
+		bar.appendChild(card);
 	}
 }
 
