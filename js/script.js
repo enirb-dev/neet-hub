@@ -80,6 +80,7 @@ let DEVMODE = false;
 
 let stopMessageListener = null;
 let stopNotificationListener = null;
+let stopReactionListener = null;
 
 let queryPageButtonFlag = false;
 let currentOpenLog = null;
@@ -97,7 +98,8 @@ const REF = {
 	rooms: BASE + "/rooms",
 	calls: BASE + "/calls",
 	log: BASE + "/log",
-	roomsB: BASE + "/roomsB"
+	roomsB: BASE + "/roomsB",
+	reactions: BASE + "/reactions"
 };
 
 function GE(element) { return document.getElementById(element); }
@@ -1068,7 +1070,19 @@ function setupMessageMenu(div, messageId, message) {
 					function() {
 						togglePinMessage(messageId);
 					}
-				]
+				],
+				[
+					"React",
+					function() {
+						reactOn(messageId, event.clientX, event.clientY);
+					}
+				],
+				...(myReactionCount(messageId) > 0 ? [[
+					"Remove my reactions",
+					function() {
+						removeMyReactions(messageId);
+					}
+				]] : [])
 			]
 		);
 	});
@@ -1437,6 +1451,9 @@ async function startMessageListener(messageRef) {
 	const cont = GE("messages");
 	
 	cont.innerHTML = "";
+	
+	// start before the first render so CACHE.reactions fills in as messages draw
+	startReactionListener();
 	
 	const renderingInProgress = new Set();
 	
@@ -1884,7 +1901,9 @@ async function startMessageListener(messageRef) {
 		
 		div.appendChild(dat);
 		div.appendChild(time);
-		
+
+		renderReactions(div, messageId);
+
 		div.style.overflow = "hidden";
 		
 		if (prepend) {
@@ -2039,11 +2058,13 @@ async function startMessageListener(messageRef) {
 			messageListener();
 			messageListener = null;
 		}
-		
+
 		if (messageChangedListener) {
 			messageChangedListener();
 			messageChangedListener = null;
 		}
+
+		stopReactionListenerNow();
 	};
 	
 	cont.scrollTop = cont.scrollHeight;
@@ -3150,6 +3171,220 @@ async function refreshPinned() {
 	};
 }
 
+// ---------------------------------------------------------------
+// Reactions
+//
+// Storage:  <currentRoom>/reactions/<messageId> = [[emoji, uid, username], ...]
+// Allowed emoji list: REF.reactions (/reactions). Falls back to DEFAULT_REACTIONS.
+//
+// One listener per open room keeps CACHE.reactions up to date and re-renders
+// only the messages that changed. Messages that render later (older chunks,
+// new arrivals) read from the cache in renderMessage().
+// ---------------------------------------------------------------
+
+const DEFAULT_REACTIONS = ["👍", "❤️", "😂", "😮", "😢", "🙏"];
+
+CACHE.reactions = {};
+CACHE.rxnList = null;
+
+(function() {
+	if (document.getElementById("rxnStyle")) return;
+	const st = document.createElement("style");
+	st.id = "rxnStyle";
+	st.textContent = `
+		.reactions { display: flex; flex-wrap: wrap; gap: 4px; margin-top: 4px; }
+		.rxnChip {
+			display: inline-flex; align-items: center; gap: 3px;
+			padding: 1px 7px; border-radius: 12px; font-size: 13px;
+			background: rgba(255,255,255,0.10); border: 1px solid #916a0a;
+			cursor: pointer; user-select: none;
+		}
+		.rxnChip.mine { background: rgba(184,134,11,0.28); border-color: #b8860b; }
+		.rxnChip .rxnCount { font-size: 11px; opacity: 0.85; }
+	`;
+	document.head.appendChild(st);
+})();
+
+function reactionPath(msgId) {
+	return currentRoom + "/reactions/" + msgId;
+}
+
+// Firebase may hand back arrays as objects (sparse keys); also drops malformed entries.
+function normalizeReactions(raw) {
+	if (!raw) return [];
+	const list = Array.isArray(raw) ? raw : Object.values(raw);
+	return list.filter(r => Array.isArray(r) && r.length >= 3);
+}
+
+async function getReactionList() {
+	if (CACHE.rxnList) return CACHE.rxnList;
+
+	let raw = null;
+	try { raw = await fetch(REF.reactions); } catch (err) { console.warn("Reaction list fetch failed:", err); }
+
+	let list = !raw ? [] : (Array.isArray(raw) ? raw : Object.values(raw));
+	list = list.filter(r => typeof r === "string" && r.length > 0);
+
+	CACHE.rxnList = list.length ? list : DEFAULT_REACTIONS;
+	return CACHE.rxnList;
+}
+
+// Add my reaction if I don't have it yet, remove it if I do.
+async function toggleReaction(msgId, rxn) {
+	if (!currentUser || !currentRoom) return;
+	const uid = currentUser.uid;
+	
+	try {
+		await runTransaction(ref(db, reactionPath(msgId)), (current) => {
+			const list = normalizeReactions(current);
+			const idx = list.findIndex(r => r[0] === rxn && r[1] === uid);
+			
+			if (idx >= 0) {
+				list.splice(idx, 1);
+			} else {
+				list.push([rxn, uid, currentUsername]);
+			}
+			
+			return list.length ? list : null;   // null deletes the node
+		});
+	} catch (err) {
+		console.error("Reaction update failed:", err);
+		dialog("Could not update reaction.", true);
+	}
+}
+
+// Remove every reaction I have on a message.
+async function removeMyReactions(msgId) {
+	if (!currentUser || !currentRoom) return;
+	const uid = currentUser.uid;
+
+	try {
+		await runTransaction(ref(db, reactionPath(msgId)), (current) => {
+			const list = normalizeReactions(current).filter(r => r[1] !== uid);
+			return list.length ? list : null;
+		});
+	} catch (err) {
+		console.error("Reaction removal failed:", err);
+		dialog("Could not remove reactions.", true);
+	}
+}
+
+function myReactionCount(msgId) {
+	if (!currentUser) return 0;
+	return normalizeReactions(CACHE.reactions[msgId]).filter(r => r[1] === currentUser.uid).length;
+}
+
+// Draws the reaction chips for one message div from CACHE.reactions.
+function renderReactions(div, msgId) {
+	if (!div) return;
+
+	let bar = div.querySelector(".reactions");
+	const list = normalizeReactions(CACHE.reactions[msgId]);
+
+	if (list.length === 0) {
+		if (bar) bar.remove();
+		return;
+	}
+
+	if (!bar) {
+		bar = CE("div");
+		bar.className = "reactions";
+
+		const time = div.querySelector(".message-time");
+		if (time) {
+			div.insertBefore(bar, time);
+		} else {
+			div.appendChild(bar);
+		}
+	}
+
+	bar.textContent = "";
+
+	// group by emoji, keeping first-seen order
+	const groups = new Map();
+	for (const [rxn, uid, uname] of list) {
+		if (!groups.has(rxn)) groups.set(rxn, []);
+		groups.get(rxn).push({ uid: uid, name: uname });
+	}
+
+	for (const [rxn, users] of groups) {
+		const chip = CE("span");
+		chip.className = "rxnChip";
+
+		const mine = currentUser && users.some(u => u.uid === currentUser.uid);
+		if (mine) chip.classList.add("mine");
+
+		const em = CE("span");
+		em.textContent = rxn;
+		chip.appendChild(em);
+
+		if (users.length > 1) {
+			const count = CE("span");
+			count.className = "rxnCount";
+			count.textContent = users.length;
+			chip.appendChild(count);
+		}
+
+		chip.title = users.map(u => u.name || "Unknown").join(", ");
+
+		// tap a chip to add / remove your own reaction of that emoji
+		chip.onclick = function(event) {
+			event.stopPropagation();
+			toggleReaction(msgId, rxn);
+		};
+
+		bar.appendChild(chip);
+	}
+}
+
+function startReactionListener() {
+	stopReactionListenerNow();
+
+	CACHE.reactions = {};
+	if (!currentRoom) return;
+
+	const roomAtStart = currentRoom;
+
+	stopReactionListener = onValue(
+		ref(db, currentRoom + "/reactions"),
+		function(snapshot) {
+			if (roomAtStart !== currentRoom) return;   // user switched chat
+
+			const prev = CACHE.reactions;
+			const next = snapshot.exists() ? snapshot.val() : {};
+			CACHE.reactions = next;
+
+			// re-render every message whose reactions changed (added, edited or removed)
+			const ids = new Set([...Object.keys(prev), ...Object.keys(next)]);
+			const cont = GE("messages");
+
+			for (const id of ids) {
+				if (JSON.stringify(prev[id] ?? null) === JSON.stringify(next[id] ?? null)) continue;
+
+				const div = cont.querySelector(`[data-message-id="${id}"]`);
+				if (div) renderReactions(div, id);
+			}
+		},
+		function(err) {
+			console.error("Reaction listener error:", err);
+		}
+	);
+}
+
+function stopReactionListenerNow() {
+	if (stopReactionListener) {
+		stopReactionListener();
+		stopReactionListener = null;
+	}
+}
+
+async function reactOn(msgId, x, y) {
+	if (!currentUser || !currentRoom) return;
+	const rxns = await getReactionList();
+	const options = rxns.map(rxn => [rxn, () => toggleReaction(msgId, rxn)]);
+	
+	createMenu(x, y, options);
+}
 
 // ----------------------------------------------------------------
 // ----------------------------------------------------------------
