@@ -3672,9 +3672,12 @@ onAuthStateChanged(
 			Log(`Logged User: ${currentUsername}`);
 		}
 		
+		GE("username").value = "";
+		GE("password").value = "";
+		
 		GE("currentUser").textContent = currentUsername;
 		
-		showDiv("banners"); showE("bannerChat");
+		showE("banners"); showE("bannerChat");
 		hideE("loginPage"); hideE("adminPage");
 		
 		showE("chatPage");
