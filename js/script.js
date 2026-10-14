@@ -3677,7 +3677,7 @@ onAuthStateChanged(
 		
 		GE("currentUser").textContent = currentUsername;
 		
-		showE("banners"); showE("bannerChat");
+		showDiv("banners"); showE("banners"); showE("bannerChat");
 		hideE("loginPage"); hideE("adminPage");
 		
 		showE("chatPage");
