@@ -2715,6 +2715,16 @@ window.backToAdmin = function() {
     }
 };
 
+window.backToGlobal = function() {
+	hideE("roomsPage");
+	showE("chatPage");
+	
+	if(GE("cRoom")) { GE("cRoom").remove(); }
+	
+	openRoom(REF.globalChat)
+}
+
+
 window.showLog = async function(user=false) {
 	let logBase = null;
 	const cont = GE("logDiv");
