@@ -835,14 +835,11 @@ window.sendMessage = async function(recursive=false) {
 	} else if (tmp[0] == 2) {
 		CACHE.hacker = !CACHE.hacker;
 	} else if (tmp[0] == 4) {
-		// bad schedule tag: put the text back so nothing is lost, send nothing
 		input.value = text;
 		return;
 	}
-
-	// a message scheduled for the future must not leak early via preview text or notifications
+	
 	const isScheduled = _time !== null && _time * 1000 > Date.now();
-
 	const files = Array.from(fileInput.files);
 	
 	if (files.length == 0 && text) {
@@ -851,9 +848,6 @@ window.sendMessage = async function(recursive=false) {
 			senderName: currentUsername,
 			type: "text",
 			data: text,
-			// a future-scheduled message sorts at its reveal time, so after a reload it sits
-			// where it appeared, not where it was typed. Past/no schedule keeps send time
-			// (a past tstamp would be missed by other clients' "new messages" listener).
 			tstamp: isScheduled ? _time * 1000 : Date.now(),
 			time: _time,
 			seenBy: [currentUser.uid],
@@ -1494,7 +1488,7 @@ function clearScheduledTimers() {
 	scheduledTimers.clear();
 }
 
-async function startMessageListener(messageRef) {
+async function startMessageListener(messageRef, inspecting=false) {
 	clearScheduledTimers();
 
 	if (stopMessageListener) {
@@ -1539,35 +1533,28 @@ async function startMessageListener(messageRef) {
 		if (!message) return;
 		if (message.deleted && !CACHE.hacker) return;
 		if (cont.querySelector(`[data-message-id="${messageId}"]`)) return;
-
-		// Scheduled message whose time has not come yet: show nothing, mark nothing as seen,
-		// and render it for real when its time arrives.
+		
 		if (message.time && message.time * 1000 > Date.now()) {
 			if (!scheduledTimers.has(messageId)) {
 				const roomAtSchedule = currentRoom;
 				const wait = Math.min(message.time * 1000 - Date.now(), 2147483647);
-
+				
 				scheduledTimers.set(messageId, setTimeout(async function() {
 					scheduledTimers.delete(messageId);
 					if (roomAtSchedule !== currentRoom || !currentUser) return;
-
-					// re-read it: it may have been deleted/changed while it was waiting
+					
 					const fresh = await fetch(roomAtSchedule + "/messages/" + messageId);
 					if (!fresh || roomAtSchedule !== currentRoom) return;
-
-					const wasAtBottom =
-						cont.scrollHeight - cont.scrollTop - cont.clientHeight < 150;
-
-					// goes back through the same path; if the timer fired a hair early
-					// (or the wait was clamped) it simply re-schedules itself
+					
+					const wasAtBottom = cont.scrollHeight - cont.scrollTop - cont.clientHeight < 150;
 					await renderMessage(messageId, fresh);
-
+					
 					if (wasAtBottom) { cont.scrollTop = cont.scrollHeight; }
 				}, wait + 50));
 			}
 			return;
 		}
-
+		
 		if (renderingInProgress.has(messageId)) return;
 		renderingInProgress.add(messageId);
 		
@@ -1649,7 +1636,7 @@ async function startMessageListener(messageRef) {
 			formatted = "✔ " + formatted;
 		}
 		
-		time.textContent = ((message.deleted) ? "🗑 " : "") + formatted;
+		time.textContent = ((message.deleted) ? "❌ " : "") + formatted;
 		
 		time.style.fontSize = "10px";
 		time.style.position = "absolute";
@@ -1977,20 +1964,22 @@ async function startMessageListener(messageRef) {
 		div.dataset.messageId = messageId;
 		div.dataset.senderName = message.senderName || "";
 		
-		setupMessageMenu(
-			div,
-			messageId,
-			message
-		);
+		if (!inspecting) {
+			setupMessageMenu(
+				div,
+				messageId,
+				message
+			);
+		}
 		
 		div.appendChild(name);
 		
 		
 		div.appendChild(dat);
 		div.appendChild(time);
-
+		
 		renderReactions(div, messageId);
-
+		
 		div.style.overflow = "hidden";
 		
 		if (prepend) {
@@ -2000,7 +1989,7 @@ async function startMessageListener(messageRef) {
 		}
 		
 		updateSenderNameVisibility(div);
-
+		
 		if (prepend && div.nextElementSibling) {
 			updateSenderNameVisibility(div.nextElementSibling);
 		}
@@ -2538,7 +2527,10 @@ async function uploadToDrive(file) {
 
 async function openRoom(roomHash, inspecting=false) {
 	showLoadingScreen();
-	
+
+	// read-only admin view: reactions (card clicks, menu, everything) check this flag
+	CACHE.inspecting = inspecting;
+
 	hideE("roomsPage");
 	let list = ["messageInput", "messageSend", "messageCall", "recButLabel", "fileButLabel", "messageFile", "recBut"];
 	if (inspecting) {
@@ -2616,7 +2608,7 @@ async function openRoom(roomHash, inspecting=false) {
 	}
 	
 	blockLoad = false;
-	await startMessageListener(ref(db, roomHash + "/messages"));
+	await startMessageListener(ref(db, roomHash + "/messages"), inspecting);
 	refreshPinned();
 	
 	doneLoading();
@@ -3336,7 +3328,7 @@ async function getReactionList() {
 
 // Add my reaction if I don't have it yet, remove it if I do.
 async function toggleReaction(msgId, rxn) {
-	if (!currentUser || !currentRoom) return;
+	if (!currentUser || !currentRoom || CACHE.inspecting) return;
 	const uid = currentUser.uid;
 	
 	try {
@@ -3360,7 +3352,7 @@ async function toggleReaction(msgId, rxn) {
 
 // Remove every reaction I have on a message.
 async function removeMyReactions(msgId) {
-	if (!currentUser || !currentRoom) return;
+	if (!currentUser || !currentRoom || CACHE.inspecting) return;
 	const uid = currentUser.uid;
 
 	try {
@@ -3433,10 +3425,15 @@ function renderReactions(div, msgId) {
 		card.title = users.map(u => u.name || "Unknown").join(", ");
 
 		// tap a card to add / remove your own reaction of that emoji
-		card.onclick = function(event) {
-			event.stopPropagation();
-			toggleReaction(msgId, rxn);
-		};
+		// (inspecting admins can only look: no handler, no pointer cursor)
+		if (CACHE.inspecting) {
+			card.style.cursor = "default";
+		} else {
+			card.onclick = function(event) {
+				event.stopPropagation();
+				toggleReaction(msgId, rxn);
+			};
+		}
 
 		bar.appendChild(card);
 	}
@@ -3484,7 +3481,7 @@ function stopReactionListenerNow() {
 }
 
 async function reactOn(msgId, x, y) {
-	if (!currentUser || !currentRoom) return;
+	if (!currentUser || !currentRoom || CACHE.inspecting) return;
 	const rxns = await getReactionList();
 	const options = rxns.map(rxn => [rxn, () => toggleReaction(msgId, rxn)]);
 	
@@ -4637,58 +4634,50 @@ GE("callButton").disabled =
 // ----------------------------------------------------------------
 // ----------------------------------------------------------------
 
-
-/* =========================================================
-   Left sidebar (#controlBanner): collapse / expand
-   ========================================================= */
 (function initSidebar() {
 	const bar = document.getElementById("controlBanner");
 	const toggleBtn = document.getElementById("sideToggle");
 	const topBar = document.getElementById("bannerTop");
 	if (!bar || !toggleBtn) return;
-
+	
 	function setCollapsed(collapsed) {
 		bar.classList.toggle("collapsed", collapsed);
 		document.body.classList.toggle("sidebarOpen", !collapsed);
 		toggleBtn.setAttribute("aria-expanded", String(!collapsed));
 		toggleBtn.title = collapsed ? "Expand menu" : "Collapse menu";
 	}
-
+	
 	function syncLayout() {
 		const visible = !bar.hidden && getComputedStyle(bar).display !== "none";
 		document.body.classList.toggle("sidebarOn", visible);
 		if (!visible) setCollapsed(true);
-
-		// keep the sidebar just below the top banner
+		
 		if (topBar && topBar.offsetHeight) {
 			document.documentElement.style.setProperty("--topbar-h", (topBar.offsetHeight + 8) + "px");
 		}
 	}
-
+	
 	toggleBtn.addEventListener("click", () => {
 		setCollapsed(!bar.classList.contains("collapsed"));
 	});
-
-	// choosing an item closes the drawer
+	
 	bar.addEventListener("click", (e) => {
 		if (e.target.closest(".sideItem")) setCollapsed(true);
 	});
-
-	// click / tap anywhere outside the bar auto-collapses it
+	
 	document.addEventListener("pointerdown", (e) => {
 		if (!bar.classList.contains("collapsed") && !bar.contains(e.target)) {
 			setCollapsed(true);
 		}
 	}, true);
-
-	// JS elsewhere shows/hides the bar via inline style -> watch for it
+	
 	new MutationObserver(syncLayout).observe(bar, { attributes: true, attributeFilter: ["style", "hidden"] });
 	if (topBar) {
 		new MutationObserver(syncLayout).observe(topBar, { attributes: true, attributeFilter: ["style", "hidden"] });
 		if (window.ResizeObserver) new ResizeObserver(syncLayout).observe(topBar);
 	}
 	window.addEventListener("resize", syncLayout);
-
+	
 	setCollapsed(true);
 	syncLayout();
 })();
