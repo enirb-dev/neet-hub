@@ -789,8 +789,44 @@ window.sendMessage = async function(recursive=false) {
 			return [2, clean];
 		}
 		
+		const scheduleMatch = str.match(/\/schedule:(\d{2})-(\d{2})-(\d{4});(\d{2}):(\d{2}):(\d{2})/);
+		
+		if (scheduleMatch) {
+			const [fullTag, day, month, year, hours, minutes, seconds] = scheduleMatch;
+			
+			const when = new Date(
+				Number(year),
+				Number(month) - 1,
+				Number(day),
+				Number(hours),
+				Number(minutes),
+				Number(seconds)
+			);
+
+			const clean = str.replace(fullTag, "").trim();
+
+			// reject impossible dates (month 13, 31 Feb, 25:00 ...) instead of letting them roll over
+			const valid =
+				when.getFullYear() === Number(year) &&
+				when.getMonth() === Number(month) - 1 &&
+				when.getDate() === Number(day) &&
+				when.getHours() === Number(hours) &&
+				when.getMinutes() === Number(minutes) &&
+				when.getSeconds() === Number(seconds);
+
+			if (!valid) {
+				dialog("Invalid schedule date. Use /schedule:DD-MM-YYYY;HH:MM:SS", true);
+				return [4, clean];
+			}
+
+			// messages store `time` in unix SECONDS (everything else reads it as seconds)
+			_time = Math.floor(when.getTime() / 1000);
+			return [3, clean];
+		}
+		
 		return [0, str];
 	}
+	
 	
 	let tmp = formatString(text);
 	text = tmp[1];
@@ -798,8 +834,15 @@ window.sendMessage = async function(recursive=false) {
 		_time = null;
 	} else if (tmp[0] == 2) {
 		CACHE.hacker = !CACHE.hacker;
+	} else if (tmp[0] == 4) {
+		// bad schedule tag: put the text back so nothing is lost, send nothing
+		input.value = text;
+		return;
 	}
-	
+
+	// a message scheduled for the future must not leak early via preview text or notifications
+	const isScheduled = _time !== null && _time * 1000 > Date.now();
+
 	const files = Array.from(fileInput.files);
 	
 	if (files.length == 0 && text) {
@@ -808,7 +851,10 @@ window.sendMessage = async function(recursive=false) {
 			senderName: currentUsername,
 			type: "text",
 			data: text,
-			tstamp: Date.now(),
+			// a future-scheduled message sorts at its reveal time, so after a reload it sits
+			// where it appeared, not where it was typed. Past/no schedule keeps send time
+			// (a past tstamp would be missed by other clients' "new messages" listener).
+			tstamp: isScheduled ? _time * 1000 : Date.now(),
 			time: _time,
 			seenBy: [currentUser.uid],
 			replyingTo: CACHE.replying,
@@ -831,7 +877,7 @@ window.sendMessage = async function(recursive=false) {
 			tstamp: Date.now()
 		};
 		
-		if (currentRoomData) {
+		if (currentRoomData && !isScheduled) {
 			await set(
 				ref(
 					db,
@@ -841,9 +887,9 @@ window.sendMessage = async function(recursive=false) {
 				),
 				lastMeta
 			);
-			
+
 			for (const _user of currentRoomData.users) {
-				
+
 				if (_user == currentUser.uid) { continue; }
 				const notifRef = push(
 					ref(db, REF.users + "/" + _user + "/notifications")
@@ -1437,7 +1483,20 @@ function linkify(container, text) {
 }
 
 let renderMessage = null;
+
+// messageId -> timeout handle, for scheduled messages waiting to be revealed
+const scheduledTimers = new Map();
+
+function clearScheduledTimers() {
+	for (const handle of scheduledTimers.values()) {
+		clearTimeout(handle);
+	}
+	scheduledTimers.clear();
+}
+
 async function startMessageListener(messageRef) {
+	clearScheduledTimers();
+
 	if (stopMessageListener) {
 		stopMessageListener();
 		stopMessageListener = null;
@@ -1480,7 +1539,35 @@ async function startMessageListener(messageRef) {
 		if (!message) return;
 		if (message.deleted && !CACHE.hacker) return;
 		if (cont.querySelector(`[data-message-id="${messageId}"]`)) return;
-		
+
+		// Scheduled message whose time has not come yet: show nothing, mark nothing as seen,
+		// and render it for real when its time arrives.
+		if (message.time && message.time * 1000 > Date.now()) {
+			if (!scheduledTimers.has(messageId)) {
+				const roomAtSchedule = currentRoom;
+				const wait = Math.min(message.time * 1000 - Date.now(), 2147483647);
+
+				scheduledTimers.set(messageId, setTimeout(async function() {
+					scheduledTimers.delete(messageId);
+					if (roomAtSchedule !== currentRoom || !currentUser) return;
+
+					// re-read it: it may have been deleted/changed while it was waiting
+					const fresh = await fetch(roomAtSchedule + "/messages/" + messageId);
+					if (!fresh || roomAtSchedule !== currentRoom) return;
+
+					const wasAtBottom =
+						cont.scrollHeight - cont.scrollTop - cont.clientHeight < 150;
+
+					// goes back through the same path; if the timer fired a hair early
+					// (or the wait was clamped) it simply re-schedules itself
+					await renderMessage(messageId, fresh);
+
+					if (wasAtBottom) { cont.scrollTop = cont.scrollHeight; }
+				}, wait + 50));
+			}
+			return;
+		}
+
 		if (renderingInProgress.has(messageId)) return;
 		renderingInProgress.add(messageId);
 		
@@ -1937,9 +2024,15 @@ async function startMessageListener(messageRef) {
 			(a, b) => a[1].tstamp - b[1].tstamp
 		);
 		
-		if (messages.length > 0) {
-			oldestMessageTime = messages[0][1].tstamp;
-			newestMessageTime = messages[messages.length - 1][1].tstamp;
+		// Scheduled messages carry a future tstamp until they are revealed. Leave them out of
+		// the pagination bounds, otherwise the "new messages" listener would start in the
+		// future and miss everything sent before then.
+		const nowMs = Date.now();
+		const visible = messages.filter(m => m[1].tstamp <= nowMs);
+
+		if (visible.length > 0) {
+			oldestMessageTime = visible[0][1].tstamp;
+			newestMessageTime = visible[visible.length - 1][1].tstamp;
 		}
 		
 		for (const [messageId, message] of messages) {
@@ -2064,9 +2157,10 @@ async function startMessageListener(messageRef) {
 			messageChangedListener = null;
 		}
 
+		clearScheduledTimers();
 		stopReactionListenerNow();
 	};
-	
+
 	cont.scrollTop = cont.scrollHeight;
 }
 
@@ -3074,7 +3168,8 @@ async function refreshLastMessageMeta(roomUid, roomHash) {
 	};
 	
 	if (messages) {
-		const remaining = Object.values(messages).filter(m => !m.deleted);
+		// skip still-hidden scheduled messages so their text can't leak into the room preview
+		const remaining = Object.values(messages).filter(m => !m.deleted && m.tstamp <= Date.now());
 		
 		if (remaining.length > 0) {
 			remaining.sort((a, b) => a.tstamp - b.tstamp);
