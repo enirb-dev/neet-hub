@@ -3710,10 +3710,24 @@ window.login = async function() {
 	
 	if (!user || !pass) {
 		if (!CACHE.testing) {
+			if (!user && !pass) {
+				dialog("Unauthorized Test User Access Denied. This action has been recorded, and should not be retried.", true);
+				Log("Unauthorized Test Access Attempted.", false);
+				doneLoading();
+				return;
+			}
+			
 			setLoginStatus("Enter username and Password.");
 			doneLoading();
 			return;
 		} else {
+			if (!user && !pass) {
+				dialog("Unauthorized Test User Access Denied. This action has been recorded, and should not be retried.", true);
+				Log("Unauthorized Test Access Attempted.", false);
+				doneLoading();
+				return;
+			}
+			
 			user = "test";
 			pass = "test1234";
 		}
