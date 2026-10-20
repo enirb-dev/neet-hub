@@ -2142,3 +2142,343 @@ body.sidebarOn #appWorking {
 		padding-left: 174px;
 	}
 }
+
+/* ==========================================================
+   34. VOLUNTARY MEDIA & VIDEO CALLING STYLING
+   ========================================================== */
+
+#roomMediaBar {
+	display: none;
+	margin: 6px 0 10px 0;
+	padding: 10px 14px;
+	background: linear-gradient(145deg, rgba(26, 24, 18, 0.88), rgba(12, 11, 8, 0.95));
+	border: 1px solid var(--border-strong);
+	border-radius: var(--radius-md);
+	box-shadow: var(--shadow-sm), inset 0 1px 0 var(--glass-highlight);
+	transition: all 0.25s ease;
+}
+
+.roomMediaControls {
+	display: flex;
+	align-items: center;
+	gap: 10px;
+	flex-wrap: wrap;
+}
+
+.mediaToggleBtn {
+	display: inline-flex;
+	align-items: center;
+	gap: 7px;
+	padding: 7px 14px;
+	margin: 0;
+	font-size: 13px;
+	font-weight: 650;
+	border-radius: 9px;
+	background: linear-gradient(145deg, #1c1a14, #0e0e0b);
+	color: var(--text-soft);
+	border: 1px solid rgba(212, 175, 55, 0.28);
+	cursor: pointer;
+	box-shadow: 0 3px 10px rgba(0, 0, 0, 0.35);
+	transition: all var(--transition);
+}
+
+.mediaToggleBtn:hover {
+	color: #f7df8f;
+	border-color: rgba(212, 175, 55, 0.55);
+	transform: translateY(-1px);
+}
+
+.mediaToggleBtn.active {
+	background: linear-gradient(145deg, #30260f, #181409);
+	color: #ffe792;
+	border-color: rgba(212, 175, 55, 0.75);
+	box-shadow: 0 0 16px rgba(212, 175, 55, 0.25), inset 0 1px 0 rgba(255, 255, 255, 0.12);
+}
+
+.mediaToggleBtn .mediaIcon {
+	font-size: 15px;
+}
+
+.mediaQuickBtn {
+	min-width: 72px;
+	transition: all var(--transition);
+}
+
+.mediaQuickBtn.active {
+	background: linear-gradient(145deg, #30260f, #181409) !important;
+	color: #ffe792 !important;
+	border-color: rgba(212, 175, 55, 0.75) !important;
+	box-shadow: 0 0 12px rgba(212, 175, 55, 0.22) !important;
+}
+
+.partnerStatus {
+	display: inline-flex;
+	align-items: center;
+	gap: 6px;
+	margin-left: auto;
+	font-size: 12px;
+	color: var(--text-muted);
+	font-weight: 500;
+}
+
+.statusDot {
+	width: 8px;
+	height: 8px;
+	border-radius: 50%;
+	background: #555;
+	display: inline-block;
+	transition: all 0.3s ease;
+}
+
+.statusDot.active {
+	background: var(--success);
+	box-shadow: 0 0 8px rgba(88, 214, 141, 0.65);
+}
+
+#videoStage {
+	display: none;
+	gap: 12px;
+	margin-top: 10px;
+	align-items: center;
+	justify-content: center;
+	flex-wrap: wrap;
+}
+
+.videoContainer {
+	position: relative;
+	flex: 1 1 240px;
+	max-width: 380px;
+	min-width: 180px;
+	aspect-ratio: 4 / 3;
+	background: #000;
+	border: 1px solid var(--border-strong);
+	border-radius: 12px;
+	overflow: hidden;
+	box-shadow: 0 6px 24px rgba(0, 0, 0, 0.65), 0 0 18px rgba(212, 175, 55, 0.08);
+}
+
+.videoContainer video {
+	width: 100%;
+	height: 100%;
+	object-fit: cover;
+	display: block;
+	background: #000;
+}
+
+.videoBadge {
+	position: absolute;
+	bottom: 8px;
+	left: 8px;
+	padding: 3px 9px;
+	font-size: 11px;
+	font-weight: 650;
+	color: #fff;
+	background: rgba(0, 0, 0, 0.72);
+	border-radius: 6px;
+	backdrop-filter: blur(6px);
+	border: 1px solid rgba(255, 255, 255, 0.12);
+	pointer-events: none;
+	letter-spacing: 0.3px;
+}
+
+/* Permanent Stamp Message */
+.stampMessage {
+	position: relative;
+	margin: 10px auto;
+	padding: 7px 18px;
+	max-width: 86%;
+	width: fit-content;
+	text-align: center;
+	background: linear-gradient(145deg, rgba(34, 29, 18, 0.88), rgba(16, 14, 10, 0.94));
+	border: 1px solid rgba(212, 175, 55, 0.28);
+	border-radius: 20px;
+	color: #e5dac2;
+	font-size: 12.5px;
+	font-style: italic;
+	letter-spacing: 0.2px;
+	box-shadow: 0 2px 12px rgba(0, 0, 0, 0.38), inset 0 1px 0 rgba(255, 255, 255, 0.04);
+	user-select: none;
+	-webkit-user-select: none;
+	cursor: default;
+}
+
+.stampMessage .stampTime {
+	display: inline-block;
+	margin-left: 8px;
+	font-size: 10.5px;
+	color: #a09581;
+	font-style: normal;
+}
+
+
+/* ==========================================================
+   35. FLOATING DRAGGABLE VIDEO BOXES & FLIP MODE
+   ========================================================== */
+
+.floatingVideoBox {
+	position: fixed;
+	z-index: 9998;
+	width: 280px;
+	background: linear-gradient(145deg, rgba(28, 25, 18, 0.95), rgba(12, 11, 8, 0.98));
+	border: 1px solid var(--border-strong);
+	border-radius: 14px;
+	box-shadow: 0 10px 35px rgba(0, 0, 0, 0.75), 0 0 20px rgba(212, 175, 55, 0.12);
+	overflow: hidden;
+	user-select: none;
+	touch-action: none;
+	transition: width 0.22s ease, height 0.22s ease, border-radius 0.22s ease, box-shadow 0.22s ease;
+}
+
+#remoteVideoContainer {
+	top: 80px;
+	right: 20px;
+}
+
+#localVideoContainer {
+	bottom: 85px;
+	right: 20px;
+	width: 220px;
+}
+
+.floatingVideoHeader {
+	display: flex;
+	align-items: center;
+	justify-content: space-between;
+	padding: 6px 10px;
+	background: rgba(255, 255, 255, 0.04);
+	border-bottom: 1px solid rgba(255, 215, 120, 0.12);
+	cursor: grab;
+}
+
+.floatingVideoHeader:active {
+	cursor: grabbing;
+}
+
+.dragHandle {
+	color: var(--primary);
+	font-size: 13px;
+	margin-right: 6px;
+	opacity: 0.75;
+}
+
+.floatingVideoTitle {
+	font-size: 12px;
+	font-weight: 650;
+	color: #fffdf5;
+	flex: 1;
+	white-space: nowrap;
+	overflow: hidden;
+	text-overflow: ellipsis;
+}
+
+.floatingHeaderActions {
+	display: flex;
+	align-items: center;
+	gap: 4px;
+}
+
+.floatingActionBtn {
+	display: inline-flex;
+	align-items: center;
+	justify-content: center;
+	width: 26px;
+	height: 26px;
+	padding: 0;
+	margin: 0;
+	border-radius: 6px;
+	background: rgba(255, 255, 255, 0.06);
+	border: 1px solid rgba(255, 215, 120, 0.18);
+	color: #dfd5be;
+	font-size: 12px;
+	cursor: pointer;
+	box-shadow: none;
+	transition: all var(--transition);
+}
+
+.floatingActionBtn:hover {
+	background: rgba(212, 175, 55, 0.22);
+	color: #fff;
+	border-color: rgba(212, 175, 55, 0.5);
+	transform: scale(1.05);
+}
+
+.floatingVideoBody {
+	position: relative;
+	width: 100%;
+	aspect-ratio: 4 / 3;
+	background: #000;
+	overflow: hidden;
+}
+
+.floatingVideoBody video {
+	width: 100%;
+	height: 100%;
+	object-fit: cover;
+	display: block;
+	background: #000;
+	transition: transform 0.25s ease;
+}
+
+/* Flipped video (horizontal mirror) */
+video.flipped {
+	transform: scaleX(-1);
+}
+
+/* Minimized State: Turns into a small square icon */
+.floatingVideoBox.minimized {
+	width: 54px !important;
+	height: 54px !important;
+	border-radius: 12px;
+	cursor: pointer;
+	background: linear-gradient(145deg, #282212, #0e0d0a);
+	border: 1.5px solid var(--primary);
+	box-shadow: 0 6px 20px rgba(0, 0, 0, 0.7), 0 0 15px rgba(212, 175, 55, 0.35);
+	overflow: visible;
+}
+
+.floatingVideoBox.minimized .floatingVideoHeader,
+.floatingVideoBox.minimized .floatingVideoBody {
+	display: none !important;
+}
+
+.minimizedIcon {
+	display: none;
+	width: 100%;
+	height: 100%;
+	flex-direction: column;
+	align-items: center;
+	justify-content: center;
+	position: relative;
+	cursor: pointer;
+}
+
+.floatingVideoBox.minimized .minimizedIcon {
+	display: flex;
+}
+
+.minimizedEmoji {
+	font-size: 22px;
+	line-height: 1;
+	filter: drop-shadow(0 2px 4px rgba(0, 0, 0, 0.6));
+}
+
+.minimizedBadge {
+	font-size: 9px;
+	font-weight: 700;
+	color: var(--primary-hover);
+	margin-top: 2px;
+	max-width: 48px;
+	white-space: nowrap;
+	overflow: hidden;
+	text-overflow: ellipsis;
+	text-align: center;
+}
+
+@media (max-width: 700px) {
+	.floatingVideoBox {
+		width: 200px;
+	}
+	#localVideoContainer {
+		width: 160px;
+	}
+}

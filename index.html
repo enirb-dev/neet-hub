@@ -39,7 +39,7 @@
 		<p id="loginStatus"></p>
 		<h1> Neet Hub </h1>
 		<h2> Login </h2>
-		<h3> Stamp: 090 </h3>
+		<h3> Stamp: 092 </h3>
 		
 		
 		
@@ -100,11 +100,66 @@
 				<span id="loggedInText"> Logged in as: </span>
 				<b id="currentUser"></b>
 				<button onclick="logout()" id="logoutButton"> Logout </button>
-				<!-- <button onclick="showRooms()" style="margin-left: auto;"> Private Chats </button> -->
+				<button onclick="backToRooms()" id="chatBackButton" style="display: none; margin-left: auto;"> ← Back to Private </button>
 			</div>
 			
 			<hr>
 			
+			
+			<div id="roomMediaBar" style="display: none;">
+				<div class="roomMediaControls">
+					<button id="camToggleBtn" onclick="toggleCamera()" class="mediaToggleBtn">
+						<span class="mediaIcon">📷</span>
+						<span id="camToggleText">Camera: OFF</span>
+					</button>
+					<button id="micToggleBtn" onclick="toggleMic()" class="mediaToggleBtn">
+						<span class="mediaIcon">🎙️</span>
+						<span id="micToggleText">Mic: OFF</span>
+					</button>
+					<div id="partnerMediaStatus" class="partnerStatus">
+						<span id="partnerStatusDot" class="statusDot"></span>
+						<span id="partnerStatusText"></span>
+					</div>
+				</div>
+				<div id="videoStage" style="display: none;">
+					<div id="remoteVideoContainer" class="floatingVideoBox" style="display: none;">
+						<div class="floatingVideoHeader" id="remoteVideoHeader">
+							<span class="dragHandle">⋮⋮</span>
+							<span class="floatingVideoTitle" id="remoteVideoBadge">Partner</span>
+							<div class="floatingHeaderActions">
+								<button class="floatingActionBtn" onclick="toggleFlipVideo('remoteVideo', event)" title="Flip Video">🪞</button>
+								<button class="floatingActionBtn" onclick="toggleMinimizeVideo('remoteVideoContainer', event)" title="Minimize to small icon">▫️</button>
+							</div>
+						</div>
+						<div class="floatingVideoBody">
+							<video id="remoteVideo" autoplay playsinline></video>
+						</div>
+						<div class="minimizedIcon" onclick="toggleMinimizeVideo('remoteVideoContainer', event)" title="Click to restore video">
+							<span class="minimizedEmoji">👤</span>
+							<span class="minimizedBadge" id="remoteMiniBadge">Partner</span>
+						</div>
+					</div>
+
+					<div id="localVideoContainer" class="floatingVideoBox" style="display: none;">
+						<div class="floatingVideoHeader" id="localVideoHeader">
+							<span class="dragHandle">⋮⋮</span>
+							<span class="floatingVideoTitle" id="localVideoBadge">You</span>
+							<div class="floatingHeaderActions">
+								<button class="floatingActionBtn" onclick="toggleFlipVideo('localVideo', event)" title="Flip Video">🪞</button>
+								<button class="floatingActionBtn" onclick="toggleMinimizeVideo('localVideoContainer', event)" title="Minimize to small icon">▫️</button>
+							</div>
+						</div>
+						<div class="floatingVideoBody">
+							<video id="localVideo" class="flipped" autoplay playsinline muted></video>
+						</div>
+						<div class="minimizedIcon" onclick="toggleMinimizeVideo('localVideoContainer', event)" title="Click to restore video">
+							<span class="minimizedEmoji">📹</span>
+							<span class="minimizedBadge" id="localMiniBadge">You</span>
+						</div>
+					</div>
+				</div>
+				<audio id="remoteAudio" autoplay playsinline></audio>
+			</div>
 			<div id="messages"></div>
 			
 			<label for="scrollToBottom" class="icon-btn" title="goToBottom" style="float: right; font-size: 50px">🔻</label>
@@ -121,7 +176,9 @@
 				>
 				
 				<button onclick="sendMessage()" id="messageSend"> Send </button>
-				<button onclick="callUser()" id="messageCall"> Call </button>
+				<button onclick="toggleCamera()" id="camQuickBtn" class="B mediaQuickBtn" title="Toggle Camera">📷 OFF</button>
+				<button onclick="toggleMic()" id="micQuickBtn" class="B mediaQuickBtn" title="Toggle Microphone">🎙️ OFF</button>
+				<button onclick="toggleCamera()" id="messageCall" hidden style="display:none;"></button>
 				
 				<label for="recBut" class="icon-btn" title="Record" id="recButLabel">🎙</label>
 				<button onclick="recordingTrigger()" style="padding: 3px 8px; font-size: 20px" class="icon-btn" id="recBut" hidden></button>

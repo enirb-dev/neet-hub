@@ -19,7 +19,8 @@ import {
 	equalTo,
 	onChildChanged,
 	startAt,
-	runTransaction
+	runTransaction,
+	onDisconnect
 } from "https://www.gstatic.com/firebasejs/12.1.0/firebase-database.js";
 
 import {
@@ -1572,6 +1573,46 @@ async function startMessageListener(messageRef, inspecting=false) {
 		
 		const isSameUser = message.senderName == lastUser;
 		
+		if (message.type === "stamp" || message.type === "system") {
+			div.className = "stampMessage";
+			div.dataset.messageId = messageId;
+			div.dataset.senderName = "";
+			
+			// Non-manipulable, not right-clickable
+			div.addEventListener("contextmenu", function(e) {
+				e.preventDefault();
+				e.stopPropagation();
+			});
+			
+			const stampIcon = CE("span");
+			stampIcon.textContent = "🔔 ";
+			stampIcon.style.marginRight = "4px";
+			
+			const stampText = CE("span");
+			stampText.textContent = message.data || "Notification";
+			
+			const stampTime = CE("span");
+			stampTime.className = "stampTime";
+			if (message.time) {
+				stampTime.textContent = formatDate(message.time * 1000);
+			} else if (message.tstamp) {
+				stampTime.textContent = formatDate(message.tstamp);
+			}
+			
+			div.appendChild(stampIcon);
+			div.appendChild(stampText);
+			if (stampTime.textContent) {
+				div.appendChild(stampTime);
+			}
+			
+			if (prepend) {
+				cont.prepend(div);
+			} else {
+				cont.appendChild(div);
+			}
+			return;
+		}
+
 		div.className = "message";
 		
 		div.style.position = "relative";
@@ -2186,6 +2227,12 @@ function startNotificationListener() {
 			
 			if (notif.type == 1) {
 				await notify("Neet-Hub", `Message From ${notif.roomName} by ${notif.senderName}.`);
+			} else if (notif.type == 3) {
+				const notifMsg = notif.text || `${notif.senderName} wants to initiate a video/audio connection with you in ${notif.roomName}`;
+				await notify("Neet-Hub", notifMsg);
+				if (typeof showInAppToast === "function") {
+					showInAppToast(notifMsg);
+				}
 			}
 			
 			await remove(snapshot.ref);
@@ -2528,24 +2575,29 @@ async function uploadToDrive(file) {
 async function openRoom(roomHash, inspecting=false) {
 	showLoadingScreen();
 
+	// Close any media from a previous room
+	if (typeof closeRoomMedia === "function") {
+		await closeRoomMedia();
+	}
+
 	// read-only admin view: reactions (card clicks, menu, everything) check this flag
 	CACHE.inspecting = inspecting;
 
 	hideE("roomsPage");
-	let list = ["messageInput", "messageSend", "messageCall", "recButLabel", "fileButLabel", "messageFile", "recBut"];
+	let list = ["messageInput", "messageSend", "messageCall", "camQuickBtn", "micQuickBtn", "camToggleBtn", "micToggleBtn", "recButLabel", "fileButLabel", "messageFile", "recBut"];
 	if (inspecting) {
-		//hideDiv("allRoomsPage");
 		hideE("adminPage");
-		//hideDiv("adminPage");
 		hideE("allRoomsPage");
 		
 		for (const el of list) {
-			GE(el).disabled = true;
+			const elem = GE(el);
+			if (elem) elem.disabled = true;
 		}
 		GE("messageInput").value = "Blocked";
 	} else {
 		for (const el of list) {
-			GE(el).disabled = false;
+			const elem = GE(el);
+			if (elem) elem.disabled = false;
 		}
 		GE("messageInput").value = "";
 	}
@@ -2568,7 +2620,11 @@ async function openRoom(roomHash, inspecting=false) {
 	initMediaDB();
 	
 	if (roomHash === REF.globalChat) {
-		GE("callButton").disabled = true;
+		if (GE("callButton")) GE("callButton").disabled = true;
+		if (GE("chatBackButton")) GE("chatBackButton").style.display = "none";
+		if (GE("roomMediaBar")) GE("roomMediaBar").style.display = "none";
+		if (GE("camQuickBtn")) GE("camQuickBtn").disabled = true;
+		if (GE("micQuickBtn")) GE("micQuickBtn").disabled = true;
 	} else {
 		const room = await fetch(roomHash);
 		currentRoomData = room;
@@ -2601,9 +2657,21 @@ async function openRoom(roomHash, inspecting=false) {
 		}
 		
 		if (room && room.users && room.users.length >= 2) {
-			GE("callButton").disabled = false;
+			if (GE("callButton")) GE("callButton").disabled = false;
+			if (GE("chatBackButton")) GE("chatBackButton").style.display = "inline-block";
+			if (GE("roomMediaBar")) GE("roomMediaBar").style.display = "block";
+			if (GE("camQuickBtn")) GE("camQuickBtn").disabled = false;
+			if (GE("micQuickBtn")) GE("micQuickBtn").disabled = false;
+			
+			if (!inspecting && typeof initRoomMediaListeners === "function") {
+				await initRoomMediaListeners();
+			}
 		} else {
-			GE("callButton").disabled = true;
+			if (GE("callButton")) GE("callButton").disabled = true;
+			if (GE("chatBackButton")) GE("chatBackButton").style.display = "none";
+			if (GE("roomMediaBar")) GE("roomMediaBar").style.display = "none";
+			if (GE("camQuickBtn")) GE("camQuickBtn").disabled = true;
+			if (GE("micQuickBtn")) GE("micQuickBtn").disabled = true;
 		}
 	}
 	
@@ -2624,6 +2692,9 @@ GE("messageInput").addEventListener("input", async (event) => {
 });
 
 window.showRooms = async function() {
+	if (typeof closeRoomMedia === "function") {
+		await closeRoomMedia();
+	}
 	hideE("chatPage");
 	hideE("profilePage");
 	showE("roomsPage");
@@ -2729,6 +2800,9 @@ window.profile = async function(hash) {
 }
 
 window.logout = async function() {
+	if (typeof closeRoomMedia === "function") {
+		await closeRoomMedia();
+	}
 	await endCall(true);
 	
 	if (stopMessageListener) {
@@ -2801,7 +2875,10 @@ window.backToAdmin = function() {
     }
 };
 
-window.backToGlobal = function() {
+window.backToGlobal = async function() {
+	if (typeof closeRoomMedia === "function") {
+		await closeRoomMedia();
+	}
 	hideE("roomsPage");
 	showE("chatPage");
 	
@@ -3141,6 +3218,7 @@ async function deleteMessageGlobal(msgID) {
 }
 
 function previewForMessage(message) {
+	if (message.type == "stamp" || message.type == "system") { return "🔔 " + (message.data || "Notification"); }
 	if (message.type == "text") { return message.data; }
 	if (message.type == "image") { return "📷 Image"; }
 	if (message.type == "video") { return "🎥 Video"; }
@@ -3183,6 +3261,11 @@ async function refreshLastMessageMeta(roomUid, roomHash) {
 
 async function deleteMessage(msgID) {
 	if (currentRoomData) {
+		const msg = await fetch(REF.rooms + "/" + currentRoomData.uid + "/messages/" + msgID);
+		if (msg && (msg.type === "stamp" || msg.type === "system" || msg.permanent)) {
+			dialog("System stamp messages cannot be deleted.", true);
+			return;
+		}
 		await update(REF.rooms + "/" + currentRoomData.uid + "/messages/" + msgID + "/deleted", true);
 		await refreshLastMessageMeta(currentRoomData.uid, currentRoom);
 	} else {
@@ -3834,819 +3917,873 @@ const rtcConfiguration = {
 	]
 };
 
+// ----------------------------------------------------------------
+// Voluntary Media & Calling System
+// ----------------------------------------------------------------
 
-let peerConnection = null;
-let localStream = null;
+let currentRoomSession = 0;
 
-let currentCallId = null;
-let currentCallData = null;
+let localCameraStream = null;
+let localMicStream = null;
+let isCameraOn = false;
+let isMicOn = false;
+let isTogglingCamera = false;
+let isTogglingMic = false;
 
-let stopIncomingCallListenerRef = null;
-let stopCurrentCallListener = null;
-
-let stopCallerCandidateListener = null;
-let stopReceiverCandidateListener = null;
-
-let callingBySelf = false;
-let isMuted = false;
-
-let pendingRemoteCandidates = [];
+let roomPeerConnection = null;
+let videoSender = null;
+let audioSender = null;
 let remoteDescriptionSet = false;
+let pendingRemoteCandidates = [];
 
-let callTimeoutTimer = null;
-let endingCall = false;
+let stopRoomPresenceListener = null;
+let stopRoomSignalListener = null;
+let stopRoomCandidatesListener = null;
+let stopRoomMediaStateListener = null;
+let roomPresenceInterval = null;
 
+let remoteMediaState = { cam: false, mic: false, ts: 0 };
 
-function showCallPage(heading, person, buttonText) {
-	hideE("chatPage");
-	hideE("roomsPage");
-	showE("callPage");
+function showInAppToast(text) {
+	const existing = document.querySelector(".neet-toast");
+	if (existing) existing.remove();
 	
-	GE("callHead").textContent = heading;
-	GE("callPerson").textContent = person;
-	GE("callStatus").textContent = "";
-	
-	const button = GE("callButton");
-	
-	button.textContent = buttonText;
-	button.disabled = false;
+	const toast = CE("div");
+	toast.className = "notification neet-toast";
+	toast.style.position = "fixed";
+	toast.style.top = "65px";
+	toast.style.right = "18px";
+	toast.style.zIndex = "10001";
+	toast.style.cursor = "pointer";
+	toast.style.maxWidth = "340px";
+	toast.style.boxShadow = "0 8px 30px rgba(0,0,0,0.7)";
+	toast.textContent = text;
+	toast.onclick = () => toast.remove();
+	document.body.appendChild(toast);
+	setTimeout(() => { if (toast.parentNode) toast.remove(); }, 6000);
 }
 
-
-function hideCallPage() {
-	hideE("callPage");
-	showE("chatPage");
+async function isOtherUserInRoom(otherUid) {
+	if (!currentRoomData) return false;
+	try {
+		const val = await fetch(REF.rooms + "/" + currentRoomData.uid + "/presence/" + otherUid);
+		if (val && typeof val === "number" && (Date.now() - val < 4500)) {
+			return true;
+		}
+	} catch (e) {
+		console.warn("Presence check error:", e);
+	}
+	return false;
 }
 
-async function getOtherUser() {
-	if (!currentRoomData || !currentRoomData.users) {
-		return null;
+async function broadcastMediaState() {
+	if (!currentRoomData || !currentUser) return;
+	try {
+		await update(REF.rooms + "/" + currentRoomData.uid + "/mediaState/" + currentUser.uid, {
+			cam: isCameraOn,
+			mic: isMicOn,
+			ts: Date.now()
+		});
+	} catch (e) {
+		console.warn("broadcastMediaState error:", e);
 	}
-	
-	const otherUID =
-		currentRoomData.users.find(
-			uid => uid !== currentUser.uid
-		);
-	
-	if (!otherUID) {
-		return null;
-	}
-	
-	const userData =
-		await fetch(
-			REF.users + "/" + otherUID
-		);
-	
-	if (!userData) {
-		return null;
-	}
-	
-	return {
-		uid: otherUID,
-		username: userData.username
-	};
 }
 
-async function createPeerConnection() {
-	if (peerConnection) {
+function updateMediaUI() {
+	const bar = GE("roomMediaBar");
+	if (!bar) return;
+	if (!currentRoomData || currentRoom === REF.globalChat) {
+		bar.style.display = "none";
 		return;
 	}
 	
-	peerConnection = new RTCPeerConnection(rtcConfiguration);
+	bar.style.display = "block";
 	
+	// Local controls
+	const camBtn = GE("camToggleBtn");
+	const camText = GE("camToggleText");
+	const camQuick = GE("camQuickBtn");
+	if (camBtn) {
+		camBtn.classList.toggle("active", isCameraOn);
+		if (camText) camText.textContent = isCameraOn ? "Camera: ON" : "Camera: OFF";
+	}
+	if (camQuick) {
+		camQuick.textContent = isCameraOn ? "📷 ON" : "📷 OFF";
+		camQuick.classList.toggle("active", isCameraOn);
+	}
+	
+	const micBtn = GE("micToggleBtn");
+	const micText = GE("micToggleText");
+	const micQuick = GE("micQuickBtn");
+	if (micBtn) {
+		micBtn.classList.toggle("active", isMicOn);
+		if (micText) micText.textContent = isMicOn ? "Mic: ON" : "Mic: OFF";
+	}
+	if (micQuick) {
+		micQuick.textContent = isMicOn ? "🎙️ ON" : "🎙️ OFF";
+		micQuick.classList.toggle("active", isMicOn);
+	}
+	
+	// Video elements
+	const videoStage = GE("videoStage");
+	const localContainer = GE("localVideoContainer");
+	const remoteContainer = GE("remoteVideoContainer");
+	
+	const showLocal = isCameraOn;
+	const showRemote = !!remoteMediaState.cam;
+	
+	if (localContainer) {
+		localContainer.style.display = showLocal ? "block" : "none";
+	}
+	if (remoteContainer) {
+		remoteContainer.style.display = showRemote ? "block" : "none";
+	}
+	
+	if (videoStage) {
+		videoStage.style.display = (showLocal || showRemote) ? "block" : "none";
+	}
+	
+	if (showLocal || showRemote) {
+		if (typeof initAllDraggableVideos === "function") {
+			initAllDraggableVideos();
+		}
+	}
+	
+	// Partner media status
+	const partnerStatusText = GE("partnerStatusText");
+	const partnerStatusDot = GE("partnerStatusDot");
+	if (partnerStatusText && currentRoomData.users && currentRoomData.users.length === 2) {
+		const camLabel = remoteMediaState.cam ? "Cam: ON" : "Cam: OFF";
+		const micLabel = remoteMediaState.mic ? "Mic: ON" : "Mic: OFF";
+		partnerStatusText.textContent = `${camLabel} | ${micLabel}`;
+		if (partnerStatusDot) {
+			partnerStatusDot.classList.toggle("active", remoteMediaState.cam || remoteMediaState.mic);
+		}
+	}
+}
+
+async function ensurePeerConnection() {
+	if (roomPeerConnection) return roomPeerConnection;
+	if (!currentRoomData || !currentUser) return null;
+	
+	const mySession = currentRoomSession;
+	const roomUid = currentRoomData.uid;
+	const signalPath = REF.rooms + "/" + roomUid + "/webrtc";
+	
+	const pc = new RTCPeerConnection(rtcConfiguration);
+	roomPeerConnection = pc;
 	remoteDescriptionSet = false;
 	pendingRemoteCandidates = [];
 	
-	try {
-		localStream = await navigator.mediaDevices.getUserMedia({audio: true, video: false});
-		
-		for ( const track of localStream.getTracks() ) {
-			peerConnection.addTrack(track, localStream);
+	// If local tracks are already active, add them to the connection
+	if (isCameraOn && localCameraStream) {
+		const vt = localCameraStream.getVideoTracks()[0];
+		if (vt) {
+			videoSender = pc.addTrack(vt, localCameraStream);
 		}
-		
-		peerConnection.ontrack = function(event) {
-				const audio = GE("remoteAudio");
-				if (!audio) { return; }
-				
-				audio.srcObject = event.streams[0];
-				
-				audio.play().catch(
-					err =>
-						console.log(
-							"Audio autoplay:",
-							err
-						)
-				);
-			};
-		
-		
-		peerConnection.onicecandidate = async function(event) {
-				if ( !event.candidate || !currentCallId ) { return; }
-				
-				const side =
-					callingBySelf
-						? "callerCandidates"
-						: "receiverCandidates";
-				
-				const candidateRef =
-					push(
-						ref(
-							db,
-							REF.calls +
-							"/" +
-							currentCallId +
-							"/" +
-							side
-						)
-					);
-				
-				try {
-					await set(candidateRef, event.candidate.toJSON());
-				}
-				catch (err) {
-					console.error(
-						"Could not save ICE candidate:",
-						err
-					);
-				}
-			};
-		
-		peerConnection.onconnectionstatechange = function() {
-				if (!peerConnection) { return; }
-				const state = peerConnection.connectionState;
-				
-				console.log(
-					"WebRTC state:",
-					state
-				);
-				
-				if (state === "connected") {
-					GE("callStatus").textContent = "Connected";
-					GE("muteButton").style.display = "inline-block";
-				}
-
-				else if (state === "disconnected") {
-					GE("callStatus").textContent = "Connection interrupted.";
-				}
-				
-				else if (state === "failed") {
-					GE("callStatus").textContent = "Connection failed.";
-				}
-				
-				else if (state === "closed") {
-					// pass
-				}
-			};
+	}
+	if (isMicOn && localMicStream) {
+		const at = localMicStream.getAudioTracks()[0];
+		if (at) {
+			audioSender = pc.addTrack(at, localMicStream);
+		}
 	}
 	
-	catch (err) {
-		// getUserMedia() can fail after peerConnection
-		
-		console.error(
-			"Peer connection setup failed:",
-			err
-		);
-		
-		if (peerConnection) {
-			peerConnection.close();
-			peerConnection = null;
-		}
-		
-		if (localStream) {
-			for ( const track of localStream.getTracks() ) {
-				track.stop();
+	pc.ontrack = (event) => {
+		if (currentRoomSession !== mySession) return;
+		const [stream] = event.streams;
+		if (event.track.kind === "video") {
+			const remoteVideo = GE("remoteVideo");
+			if (remoteVideo) {
+				remoteVideo.srcObject = stream || new MediaStream([event.track]);
+				remoteVideo.play().catch(e => console.warn("Remote video play error:", e));
 			}
-			
-			localStream = null;
+			updateMediaUI();
+		} else if (event.track.kind === "audio") {
+			const remoteAudio = GE("remoteAudio");
+			if (remoteAudio) {
+				remoteAudio.srcObject = stream || new MediaStream([event.track]);
+				remoteAudio.play().catch(e => console.warn("Remote audio play error:", e));
+			}
 		}
-		
-		throw err;
-	}
+	};
+	
+	pc.onicecandidate = async ({ candidate }) => {
+		if (!candidate || currentRoomSession !== mySession || !currentRoomData) return;
+		try {
+			await push(ref(db, signalPath + "/candidates/" + currentUser.uid), candidate.toJSON());
+		} catch (err) {
+			console.error("ICE send error:", err);
+		}
+	};
+	
+	pc.onnegotiationneeded = async () => {
+		if (currentRoomSession !== mySession || !currentRoomData) return;
+		try {
+			await pc.setLocalDescription();
+			await set(ref(db, signalPath + "/description"), {
+				from: currentUser.uid,
+				description: { type: pc.localDescription.type, sdp: pc.localDescription.sdp },
+				ts: Date.now()
+			});
+		} catch (err) {
+			console.error("Negotiation error:", err);
+		}
+	};
+	
+	pc.onconnectionstatechange = () => {
+		if (pc) {
+			console.log("Room WebRTC state:", pc.connectionState);
+		}
+	};
+	
+	return pc;
 }
 
-
-async function addRemoteCandidate(candidate) {
-	if (!peerConnection || !candidate) {
-		return;
-	}
-	
-	if (!remoteDescriptionSet) {
-		pendingRemoteCandidates.push(candidate);
-		return;
-	}
-	
+async function triggerNegotiation() {
+	if (!roomPeerConnection || !currentRoomData) return;
+	const signalPath = REF.rooms + "/" + currentRoomData.uid + "/webrtc";
 	try {
-		await peerConnection.addIceCandidate(new RTCIceCandidate(candidate));
-	}
-	
-	catch (err) {
-		console.error(
-			"ICE candidate error:",
-			err
-		);
+		const offer = await roomPeerConnection.createOffer();
+		await roomPeerConnection.setLocalDescription(offer);
+		await set(ref(db, signalPath + "/description"), {
+			from: currentUser.uid,
+			description: { type: offer.type, sdp: offer.sdp },
+			ts: Date.now()
+		});
+	} catch (e) {
+		console.warn("triggerNegotiation error:", e);
 	}
 }
-
 
 async function flushPendingRemoteCandidates() {
-	if (!peerConnection || !remoteDescriptionSet) {
-		return;
-	}
-	
-	const candidates = pendingRemoteCandidates;
+	if (!roomPeerConnection || !remoteDescriptionSet) return;
+	const list = pendingRemoteCandidates;
 	pendingRemoteCandidates = [];
-	
-	for ( const candidate of candidates ) {
+	for (const c of list) {
 		try {
-			await peerConnection.addIceCandidate( new RTCIceCandidate(candidate) );
-		}
-		catch (err) {
-			console.error(
-				"Queued ICE candidate error:",
-				err
-			);
+			await roomPeerConnection.addIceCandidate(new RTCIceCandidate(c));
+		} catch (e) {
+			console.warn("Flushed candidate error:", e);
 		}
 	}
 }
 
-function listenForCallerCandidates() {
-	if (!currentCallId) {
-		return;
+async function initRoomMediaListeners() {
+	if (!currentRoomData || currentRoomData.users.length !== 2 || !currentUser) return;
+	const mySession = ++currentRoomSession;
+	const roomUid = currentRoomData.uid;
+	const otherUid = currentRoomData.users.find(u => u !== currentUser.uid);
+	const signalPath = REF.rooms + "/" + roomUid + "/webrtc";
+	
+	// Set remote video badge label
+	const usersData = await fetch(REF.users);
+	const otherUsername = usersData?.[otherUid]?.username || "Partner";
+	const badge = GE("remoteVideoBadge");
+	if (badge) badge.textContent = `${otherUsername}'s Camera`;
+	const miniBadge = GE("remoteMiniBadge");
+	if (miniBadge) miniBadge.textContent = otherUsername;
+	
+	// 1. Establish presence in room
+	const presenceRef = ref(db, REF.rooms + "/" + roomUid + "/presence/" + currentUser.uid);
+	await set(presenceRef, Date.now());
+	try {
+		onDisconnect(presenceRef).set(0);
+	} catch (e) {
+		console.warn("onDisconnect presence error:", e);
 	}
 	
-	if (stopReceiverCandidateListener) {
-		stopReceiverCandidateListener();
-		stopReceiverCandidateListener = null;
-	}
+	if (roomPresenceInterval) clearInterval(roomPresenceInterval);
+	roomPresenceInterval = setInterval(async () => {
+		if (currentRoomSession !== mySession || !currentRoomData || !currentUser) return;
+		try {
+			await set(presenceRef, Date.now());
+		} catch (e) {
+			console.warn("Presence heartbeat failed:", e);
+		}
+	}, 1200);
 	
-	stopReceiverCandidateListener =
-		onChildAdded(
-			ref(
-				db,
-				REF.calls +
-				"/" +
-				currentCallId +
-				"/callerCandidates"
-			),
-			
-			async function(snapshot) {
-				const candidate = snapshot.val();
-				await addRemoteCandidate(candidate);
-			}
-		);
-}
-
-
-function listenForReceiverCandidates() {
-	if (!currentCallId) {
-		return;
-	}
+	// 2. Listen to other user's presence in room
+	stopRoomPresenceListener = onValue(ref(db, REF.rooms + "/" + roomUid + "/presence/" + otherUid), async (snapshot) => {
+		if (currentRoomSession !== mySession) return;
+		const otherTs = snapshot.val();
+		const isPartnerIn = otherTs && typeof otherTs === "number" && (Date.now() - otherTs < 4500);
+		
+		if (isPartnerIn && (isCameraOn || isMicOn)) {
+			await ensurePeerConnection();
+			await triggerNegotiation();
+		}
+	});
 	
-	if (stopCallerCandidateListener) {
-		stopCallerCandidateListener();
-		stopCallerCandidateListener = null;
-	}
+	// 3. Listen to other user's media state
+	stopRoomMediaStateListener = onValue(ref(db, REF.rooms + "/" + roomUid + "/mediaState/" + otherUid), (snapshot) => {
+		if (currentRoomSession !== mySession) return;
+		const state = snapshot.val();
+		remoteMediaState = state || { cam: false, mic: false, ts: 0 };
+		updateMediaUI();
+	});
 	
-	stopCallerCandidateListener =
-		onChildAdded(
-			ref(
-				db,
-				REF.calls +
-				"/" +
-				currentCallId +
-				"/receiverCandidates"
-			),
-			
-			async function(snapshot) {
-				const candidate = snapshot.val();
-				await addRemoteCandidate(candidate);
-			}
-		);
-}
-
-window.callUser =
-	async function() {
-		if (!currentUser) {
-			return;
-		}
-		if (!currentRoomData) {
-			dialog("Calling is available only in private chats.", true);
-			return;
-		}
-		
-		if (!currentRoomData.users || currentRoomData.users.length !== 2) {
-			dialog("Calling currently supports exactly 2 users per room.", true);
-			return;
-		}
-		
-		if (peerConnection || currentCallId) {
-			return;
-		}
-		
-		const otherUser = await getOtherUser();
-		
-		if (!otherUser) {
-			dialog("Could not find the other user.", true);
-			
-			return;
-		}
-		
-		const existingCalls = await fetch(REF.calls);
-		
-		Log(`Call Attempted: to ${otherUser.uid}:${otherUser.username}`);
-		
-		if (existingCalls) {
-			for ( const call of Object.values(existingCalls) ) {
-				if (call.status !== "active" && call.status !== "ringing") {
-					continue;
-				}
-				
-				if (call.caller === otherUser.uid || call.receiver === otherUser.uid) {
-					dialog("That user is already on a call.", true);
-					return;
-				}
-			}
-		}
-		
-		callingBySelf = true;
-		endingCall = false;
-		
-		showCallPage(
-			"Outgoing Call",
-			otherUser.username,
-			"End"
-		);
-		
-		GE("callStatus").textContent = "Calling...";
-		
-		const callRef = push(ref(db, REF.calls));
-		
-		currentCallId = callRef.key;
-		
-		currentCallData = {
-			caller: currentUser.uid,
-			callerName: currentUsername,
-			receiver: otherUser.uid,
-			receiverName: otherUser.username,
-			room: currentRoom,
-			status: "ringing",
-			createdAt: Date.now()
-		};
-		
+	// 4. Perfect Negotiation signaling listener
+	const polite = currentUser.uid > otherUid;
+	let makingOffer = false;
+	let ignoreOffer = false;
+	
+	stopRoomSignalListener = onValue(ref(db, signalPath + "/description"), async (snapshot) => {
+		if (currentRoomSession !== mySession) return;
+		const data = snapshot.val();
+		if (!data || data.from === currentUser.uid) return;
+		const { description } = data;
 		
 		try {
-			await set(callRef, currentCallData);
-			await createPeerConnection();
+			const pc = await ensurePeerConnection();
+			const offerCollision = (description.type === "offer") &&
+				(makingOffer || pc.signalingState !== "stable");
 			
-			listenForReceiverCandidates();
-			
-			const offer = await peerConnection.createOffer();
-			
-			await peerConnection.setLocalDescription(offer);
-			
-			await update(
-				REF.calls +
-				"/" +
-				currentCallId +
-				"/offer",
-				
-				{
-					type: offer.type,
-					sdp: offer.sdp
-				}
-			);
-			
-			if (stopCurrentCallListener) {
-				stopCurrentCallListener();
-				stopCurrentCallListener = null;
+			ignoreOffer = !polite && offerCollision;
+			if (ignoreOffer) {
+				console.log("Impolite peer ignoring offer collision");
+				return;
 			}
 			
-			stopCurrentCallListener =
-				onValue(
-					ref(
-						db,
-						REF.calls +
-						"/" +
-						currentCallId
-					),
-					
-					async function(snapshot) {
-						const data = snapshot.val();
-						
-						if (!data) {
-							return;
-						}
-						
-						currentCallData = data;
-						
-						if (data.status === "rejected") {
-							GE("callStatus").textContent = "Call rejected.";
-							await cleanupCall(true);
-							return;
-						}
-						
-						if ( data.status === "ended" ) {
-							GE("callStatus").textContent = "Call ended.";
-							await cleanupCall(true);
-							return;
-						}
-						
-						if (data.answer && peerConnection && peerConnection.currentRemoteDescription === null) {
-							try {
-								await peerConnection.setRemoteDescription( new RTCSessionDescription(data.answer));
-								remoteDescriptionSet = true;
-								
-								await flushPendingRemoteCandidates();
-								GE("callStatus").textContent = "Connected";
-							}
-							catch (err) {
-								console.error(
-									"Answer error:",
-									err
-								);
-								
-								GE("callStatus").textContent = "Could not establish connection.";
-							}
-						}
-					}
-				);
+			if (offerCollision && polite) {
+				console.log("Polite peer rolling back local offer");
+				await pc.setLocalDescription({ type: "rollback" });
+			}
 			
+			await pc.setRemoteDescription(new RTCSessionDescription(description));
+			remoteDescriptionSet = true;
+			await flushPendingRemoteCandidates();
 			
-			clearTimeout(callTimeoutTimer);
-			callTimeoutTimer = setTimeout(
-					async function() {
-						if (currentCallId && currentCallData && currentCallData.status === "ringing") {
-							GE("callStatus").textContent = "No answer.";
-							
-							await endCall();
-						}
-					},
-					30000
-				);
-			
-			GE("callButton").onclick = function() { endCall(); };
+			if (description.type === "offer") {
+				await pc.setLocalDescription();
+				await set(ref(db, signalPath + "/description"), {
+					from: currentUser.uid,
+					description: { type: pc.localDescription.type, sdp: pc.localDescription.sdp },
+					ts: Date.now()
+				});
+			}
+		} catch (err) {
+			console.error("Remote description handling error:", err);
+		}
+	});
+	
+	// 5. ICE candidates listener
+	stopRoomCandidatesListener = onChildAdded(ref(db, signalPath + "/candidates/" + otherUid), async (snapshot) => {
+		if (currentRoomSession !== mySession) return;
+		const candidate = snapshot.val();
+		if (!candidate) return;
+		if (!roomPeerConnection || !remoteDescriptionSet) {
+			pendingRemoteCandidates.push(candidate);
+			return;
+		}
+		try {
+			await roomPeerConnection.addIceCandidate(new RTCIceCandidate(candidate));
+		} catch (err) {
+			if (!ignoreOffer) {
+				console.warn("ICE candidate add error:", err);
+			}
+		}
+	});
+	
+	updateMediaUI();
+}
+
+
+// ----------------------------------------------------------------
+// Floating Draggable Video Handlers & Flip Control
+// ----------------------------------------------------------------
+
+window.toggleMinimizeVideo = function(containerId, event) {
+	if (event) {
+		event.stopPropagation();
+	}
+	const box = GE(containerId);
+	if (!box) return;
+	box.classList.toggle("minimized");
+};
+
+// Local video is permanently mirrored (no flip toggle anymore)
+(function() {
+	const lv = GE("localVideo");
+	if (lv) lv.style.transform = "scaleX(-1)";
+})();
+
+function initDraggableVideo(boxId, headerId) {
+	const box = GE(boxId);
+	if (!box) return;
+	if (box._dragInitialized) return;
+	box._dragInitialized = true;
+	
+	let dragging = false;
+	let hasMoved = false;
+	let startX = 0;
+	let startY = 0;
+	let initialLeft = 0;
+	let initialTop = 0;
+	let offsetX;
+	let offsetY;
+	let boxShiftX = 0;
+	let boxShiftY = 0;
+	let pendingMove = null;
+	let rafId = null;
+
+	box.style.touchAction = "none";
+
+	function onPointerDown(event) {
+		// Ignore clicks on header action buttons so button clicks fire cleanly
+		if (event.target.closest(".floatingActionBtn")) {
+			return;
 		}
 		
-		catch (err) {
-			console.error(
-				"Call setup error:",
-				err
-			);
-			
-			GE("callStatus").textContent = "Could not start call: " + err.message;
-			
-			await cleanupCall(true);
+		dragging = true;
+		hasMoved = false;
+		startX = event.clientX;
+		startY = event.clientY;
+		
+		// Where the box visually is right now (includes any CSS transform / margin)
+		const rect = box.getBoundingClientRect();
+
+		// Freeze size and kill transitions so switching from right/bottom to
+		// left/top can't resize or animate the box (that was the sudden jump / lag)
+		box.style.transition = "none";
+		box.style.width = rect.width + "px";
+		box.style.height = rect.height + "px";
+		box.style.right = "auto";
+		box.style.bottom = "auto";
+		box.style.left = rect.left + "px";
+		box.style.top = rect.top + "px";
+
+		// If CSS (transform, margin, ...) still shifts the box, measure the error and cancel it
+		const after = box.getBoundingClientRect();
+		const errX = after.left - rect.left;
+		const errY = after.top - rect.top;
+		if (errX || errY) {
+			box.style.left = (rect.left - errX) + "px";
+			box.style.top = (rect.top - errY) + "px";
 		}
-	};
 
+		// Remember the correction so every later move uses the same mapping
+		boxShiftX = errX;
+		boxShiftY = errY;
 
-function startIncomingCallListener() {
-	if (!currentUser) {
-		return;
+		initialLeft = rect.left;
+		initialTop = rect.top;
+		offsetX = event.clientX - rect.left;
+		offsetY = event.clientY - rect.top;
+
+		try {
+			box.setPointerCapture(event.pointerId);
+		} catch (e) {}
+	}
+
+	function applyMove() {
+		rafId = null;
+		if (!dragging || !pendingMove) return;
+
+		let newX = pendingMove.x - offsetX;
+		let newY = pendingMove.y - offsetY;
+
+		const maxX = window.innerWidth - box.offsetWidth;
+		const maxY = window.innerHeight - box.offsetHeight;
+
+		newX = Math.max(0, Math.min(newX, maxX));
+		newY = Math.max(0, Math.min(newY, maxY));
+
+		box.style.left = (newX - boxShiftX) + "px";
+		box.style.top = (newY - boxShiftY) + "px";
+	}
+
+	function onPointerMove(event) {
+		if (!dragging) return;
+
+		const dx = event.clientX - startX;
+		const dy = event.clientY - startY;
+
+		if (!hasMoved && Math.hypot(dx, dy) <= 4) {
+			return;   // a plain click must not move the box at all
+		}
+		hasMoved = true;
+
+		pendingMove = { x: event.clientX, y: event.clientY };
+		if (rafId === null) {
+			rafId = requestAnimationFrame(applyMove);
+		}
 	}
 	
-	stopIncomingCallListener();
+	function onPointerUp(event) {
+		if (!dragging) return;
+		dragging = false;
+		if (rafId !== null) {
+			cancelAnimationFrame(rafId);
+			rafId = null;
+		}
+		pendingMove = null;
+		try {
+			box.releasePointerCapture(event.pointerId);
+		} catch (e) {}
+
+		// Give size and transitions back to the stylesheet (so minimize still works)
+		box.style.transition = "";
+		box.style.width = "";
+		box.style.height = "";
+
+		// Make sure the box can't end up off screen after the size is restored
+		const r = box.getBoundingClientRect();
+		const cx = Math.max(0, Math.min(r.left, window.innerWidth - r.width));
+		const cy = Math.max(0, Math.min(r.top, window.innerHeight - r.height));
+		if (cx !== r.left) box.style.left = (parseFloat(box.style.left) + cx - r.left) + "px";
+		if (cy !== r.top) box.style.top = (parseFloat(box.style.top) + cy - r.top) + "px";
+
+		// If minimized and clicked without dragging, restore/normalize!
+		if (!hasMoved && box.classList.contains("minimized")) {
+			box.classList.remove("minimized");
+		}
+	}
 	
-	stopIncomingCallListenerRef =
-		onValue(
-			ref(db, REF.calls),
-			
-			async function(snapshot) {
-				const calls = snapshot.val();
-				if (!calls) {
-					return;
-				}
-				
-				if (currentCallId) {
-					return;
-				}
-				
-				for ( const [callId, call] of Object.entries(calls) ) {
-					if ( call.receiver !== currentUser.uid ) {
-						continue;
-					}
-					
-					if (call.status !== "ringing") {
-						continue;
-					}
-					
-					// Ignore extremely old ringing calls.
-					
-					if ( call.createdAt && Date.now() - call.createdAt > 60000 ) {
-						continue;
-					}
-					
-					if (currentCallId) {
-						return;
-					}
-					
-					await notify("Neet-Hub", `Incoming Call from ${call.callerName}`);
-					
-					currentCallId = callId;
-					currentCallData = call;
-					callingBySelf = false;
-					
-					endingCall = false;
-					
-					showCallPage("Incoming Call", call.callerName || "Unknown User", "Accept");
-					GE("callStatus").textContent = "Incoming call...";
-					
-					const rejectButton = createRejectButton();
-					
-					rejectButton.style.display = "inline-block";
-					
-					GE("callButton").onclick =
-						function() {
-							acceptCall(rejectButton);
-						};
-
-					break;
-				}
-			}
-		);
+	box.addEventListener("pointerdown", onPointerDown);
+	box.addEventListener("pointermove", onPointerMove);
+	box.addEventListener("pointerup", onPointerUp);
+	box.addEventListener("pointercancel", () => { dragging = false; });
 }
 
-
-function stopIncomingCallListener() {
-	if (stopIncomingCallListenerRef) {
-		stopIncomingCallListenerRef();
-		stopIncomingCallListenerRef = null;
-	}
+function initAllDraggableVideos() {
+	initDraggableVideo("remoteVideoContainer", "remoteVideoHeader");
+	initDraggableVideo("localVideoContainer", "localVideoHeader");
 }
 
-
-async function acceptCall(rejectBut) {
-	if (!currentCallId || !currentCallData) {
-		return;
-	}
+window.toggleCamera = async function() {
+	if (!currentUser || !currentRoomData || currentRoom === REF.globalChat) return;
+	if (currentRoomData.users.length !== 2) return;
+	if (isTogglingCamera) return;
+	isTogglingCamera = true;
 	
 	try {
-		endingCall = false;
-		GE("callButton").disabled = true;
-		GE("callStatus").textContent = "Connecting...";
+		const otherUid = currentRoomData.users.find(u => u !== currentUser.uid);
+		const usersData = await fetch(REF.users);
+		const otherUsername = usersData?.[otherUid]?.username || "Partner";
 		
-		await createPeerConnection();
-		
-		const call =
-			await fetch(
-				REF.calls +
-				"/" +
-				currentCallId
-			);
-		
-		if (!call || !call.offer) {
-			throw new Error(
-				"Call offer not found."
-			);
-		}
-		
-		await peerConnection.setRemoteDescription( new RTCSessionDescription(call.offer) );
-		remoteDescriptionSet = true;
-		
-		await flushPendingRemoteCandidates();
-		listenForCallerCandidates();
-		
-		const answer = await peerConnection.createAnswer();
-		
-		await peerConnection.setLocalDescription(answer);
-		
-		await update(
-			REF.calls +
-			"/" +
-			currentCallId +
-			"/answer",
-			
-			{
-				type: answer.type,
-				sdp: answer.sdp
+		if (!isCameraOn) {
+			// Turning Camera ON
+			const inRoom = await isOtherUserInRoom(otherUid);
+			if (!inRoom) {
+				const send = await askYesNo(`${otherUsername} is not in room currently. Send a notification?`);
+				if (send === true) {
+					// 1. Send notification
+					const notifRef = push(ref(db, REF.users + "/" + otherUid + "/notifications"));
+					await set(notifRef, {
+						room: currentRoom,
+						roomName: currentRoomData.name,
+						sender: currentUser.uid,
+						senderName: currentUsername,
+						type: 3,
+						text: `${currentUsername} wants to initiate a video/audio connection with you in ${currentRoomData.name}`,
+						timestamp: Date.now()
+					});
+					
+					// 2. Record permanent stamp in chat
+					const stampMsg = {
+						sender: currentUser.uid,
+						senderName: currentUsername,
+						type: "stamp",
+						data: `${currentUsername} wants to initiate a video/audio connection with ${otherUsername} in ${currentRoomData.name}`,
+						tstamp: Date.now(),
+						time: Math.floor(Date.now() / 1000),
+						seenBy: [currentUser.uid],
+						permanent: true
+					};
+					await set(push(ref(db, currentRoom + "/messages")), stampMsg);
+					await set(ref(db, REF.roomsB + "/" + currentRoomData.uid + "/lastMessageMeta"), {
+						senderName: currentUsername,
+						data: stampMsg.data,
+						tstamp: Date.now()
+					});
+				} else {
+					isTogglingCamera = false;
+					return;
+				}
 			}
-		);
-		
-		await update(
-			REF.calls +
-			"/" +
-			currentCallId +
-			"/status",
-			"active"
-		);
-		
-		GE("callHead").textContent = "In Call";
-		GE("callStatus").textContent = "Connected";
-		GE("callButton").disabled = false;
-		GE("callButton").textContent = "End";
-		GE("callButton").onclick = function() { endCall(); };
-		
-		_hideE(rejectBut);
+			
+			// Request local camera
+			try {
+				localCameraStream = await navigator.mediaDevices.getUserMedia({ video: true, audio: false });
+			} catch (err) {
+				console.error("Camera access failed:", err);
+				dialog("Could not access camera: " + (err.message || "Permission denied"), true);
+				isTogglingCamera = false;
+				return;
+			}
+			
+			isCameraOn = true;
+			updateMediaUI();
+			
+			const localVideo = GE("localVideo");
+			if (localVideo) {
+				localVideo.srcObject = localCameraStream;
+				localVideo.play().catch(e => console.warn("Local video play:", e));
+			}
+			
+			await broadcastMediaState();
+			
+			const pc = await ensurePeerConnection();
+			const videoTrack = localCameraStream.getVideoTracks()[0];
+			if (videoTrack && pc) {
+				if (videoSender) {
+					await videoSender.replaceTrack(videoTrack);
+				} else {
+					videoSender = pc.addTrack(videoTrack, localCameraStream);
+				}
+			}
+		} else {
+			// Turning Camera OFF
+			isCameraOn = false;
+			if (localCameraStream) {
+				localCameraStream.getTracks().forEach(t => t.stop());
+				localCameraStream = null;
+			}
+			const localVideo = GE("localVideo");
+			if (localVideo) {
+				localVideo.srcObject = null;
+			}
+			if (videoSender && roomPeerConnection) {
+				try {
+					await videoSender.replaceTrack(null);
+				} catch (e) {
+					console.warn("replaceTrack error:", e);
+				}
+			}
+			updateMediaUI();
+			await broadcastMediaState();
+		}
+	} catch (err) {
+		console.error("toggleCamera error:", err);
+	} finally {
+		isTogglingCamera = false;
 	}
-	
-	catch (err) {
-		console.error(
-			"Accept call error:",
-			err
-		);
-		GE("callStatus").textContent = "Could not connect: " + err.message;
-		await endCall();
-	}
-}
+};
 
-async function rejectCall() {
-	if (!currentCallId) {
-		return;
-	}
+window.toggleMic = async function() {
+	if (!currentUser || !currentRoomData || currentRoom === REF.globalChat) return;
+	if (currentRoomData.users.length !== 2) return;
+	if (isTogglingMic) return;
+	isTogglingMic = true;
 	
-	const callId = currentCallId;
 	try {
-		await update(
-			REF.calls +
-			"/" +
-			callId +
-			"/status",
-			"rejected"
-		);
+		const otherUid = currentRoomData.users.find(u => u !== currentUser.uid);
+		const usersData = await fetch(REF.users);
+		const otherUsername = usersData?.[otherUid]?.username || "Partner";
+		
+		if (!isMicOn) {
+			// Turning Mic ON
+			const inRoom = await isOtherUserInRoom(otherUid);
+			if (!inRoom) {
+				const send = await askYesNo(`${otherUsername} is not in room currently. Send a notification?`);
+				if (send === true) {
+					// 1. Send notification
+					const notifRef = push(ref(db, REF.users + "/" + otherUid + "/notifications"));
+					await set(notifRef, {
+						room: currentRoom,
+						roomName: currentRoomData.name,
+						sender: currentUser.uid,
+						senderName: currentUsername,
+						type: 3,
+						text: `${currentUsername} wants to initiate a video/audio connection with you in ${currentRoomData.name}`,
+						timestamp: Date.now()
+					});
+					
+					// 2. Record permanent stamp in chat
+					const stampMsg = {
+						sender: currentUser.uid,
+						senderName: currentUsername,
+						type: "stamp",
+						data: `${currentUsername} wants to initiate a video/audio connection with ${otherUsername} in ${currentRoomData.name}`,
+						tstamp: Date.now(),
+						time: Math.floor(Date.now() / 1000),
+						seenBy: [currentUser.uid],
+						permanent: true
+					};
+					await set(push(ref(db, currentRoom + "/messages")), stampMsg);
+					await set(ref(db, REF.roomsB + "/" + currentRoomData.uid + "/lastMessageMeta"), {
+						senderName: currentUsername,
+						data: stampMsg.data,
+						tstamp: Date.now()
+					});
+				} else {
+					isTogglingMic = false;
+					return;
+				}
+			}
+			
+			// Request local mic
+			try {
+				localMicStream = await navigator.mediaDevices.getUserMedia({ audio: true, video: false });
+			} catch (err) {
+				console.error("Mic access failed:", err);
+				dialog("Could not access microphone: " + (err.message || "Permission denied"), true);
+				isTogglingMic = false;
+				return;
+			}
+			
+			isMicOn = true;
+			updateMediaUI();
+			
+			await broadcastMediaState();
+			
+			const pc = await ensurePeerConnection();
+			const audioTrack = localMicStream.getAudioTracks()[0];
+			if (audioTrack && pc) {
+				if (audioSender) {
+					await audioSender.replaceTrack(audioTrack);
+				} else {
+					audioSender = pc.addTrack(audioTrack, localMicStream);
+				}
+			}
+		} else {
+			// Turning Mic OFF
+			isMicOn = false;
+			if (localMicStream) {
+				localMicStream.getTracks().forEach(t => t.stop());
+				localMicStream = null;
+			}
+			if (audioSender && roomPeerConnection) {
+				try {
+					await audioSender.replaceTrack(null);
+				} catch (e) {
+					console.warn("replaceTrack error:", e);
+				}
+			}
+			updateMediaUI();
+			await broadcastMediaState();
+		}
+	} catch (err) {
+		console.error("toggleMic error:", err);
+	} finally {
+		isTogglingMic = false;
 	}
-	catch (err) {
-		console.error(
-			"Reject call error:",
-			err
-		);
+};
+
+window.closeRoomMedia = async function() {
+	currentRoomSession++;
+	
+	// 1. Turn off local camera tracks
+	isCameraOn = false;
+	if (localCameraStream) {
+		localCameraStream.getTracks().forEach(t => t.stop());
+		localCameraStream = null;
+	}
+	const localVideo = GE("localVideo");
+	if (localVideo) localVideo.srcObject = null;
+	
+	// 2. Turn off local mic tracks
+	isMicOn = false;
+	if (localMicStream) {
+		localMicStream.getTracks().forEach(t => t.stop());
+		localMicStream = null;
 	}
 	
-	await cleanupCall(true);
-}
-
-
-window.endCall =
-	async function(silent = false) {
-		if (endingCall) {
-			return;
-		}
-		
-		if (!currentCallId) {
-			if (!silent) { hideCallPage(); }
-			return;
-		}
-		
-		endingCall = true;
-		
-		const callId = currentCallId;
-		
+	// 3. Close peer connection
+	if (roomPeerConnection) {
+		roomPeerConnection.ontrack = null;
+		roomPeerConnection.onicecandidate = null;
+		roomPeerConnection.onnegotiationneeded = null;
+		roomPeerConnection.onconnectionstatechange = null;
 		try {
-			await update(
-				REF.calls +
-				"/" +
-				callId +
-				"/status",
-				"ended"
-			);
+			roomPeerConnection.close();
+		} catch (e) {
+			console.warn("Peer connection close error:", e);
 		}
-		catch (err) {
-			console.error(
-				"End call Firebase error:",
-				err
-			);
-		}
-		
-		await cleanupCall(!silent);
-		
-		endingCall = false;
-	};
-
-
-async function cleanupCall(
-	returnToChat = true
-) {
-	clearTimeout(
-		callTimeoutTimer
-	);
-	
-	callTimeoutTimer = null;
-	
-	const rejectButton = GE("rejectCallButton");
-	
-	if (rejectButton) { rejectButton.style.display = "none"; }
-	
-	if (stopCallerCandidateListener) {
-		stopCallerCandidateListener();
-		stopCallerCandidateListener = null;
+		roomPeerConnection = null;
 	}
-	
-	if (stopReceiverCandidateListener) {
-		stopReceiverCandidateListener();
-		stopReceiverCandidateListener = null;
-	}
-	
-	if (stopCurrentCallListener) {
-		stopCurrentCallListener();
-		stopCurrentCallListener = null;
-	}
-	
-	const pc = peerConnection;
-	
-	peerConnection = null;
-	if (pc) {
-		pc.ontrack = null;
-		pc.onicecandidate = null;
-		pc.onconnectionstatechange = null;
-		
-		try {
-			pc.close();
-		}
-		catch (err) {
-			console.error(
-				"Peer close error:",
-				err
-			);
-		}
-	}
-	
-	if (localStream) {
-		for ( const track of localStream.getTracks() ) {
-			track.stop();
-		}
-		
-		localStream = null;
-	}
-	
-	const audio = GE("remoteAudio");
-	
-	if (audio) {
-		audio.pause();
-		audio.srcObject =
-			null;
-	}
-	
-	currentCallId = null;
-	currentCallData = null;
-	callingBySelf = false;
-	isMuted = false;
+	videoSender = null;
+	audioSender = null;
 	remoteDescriptionSet = false;
 	pendingRemoteCandidates = [];
 	
-	GE("muteButton").style.display = "none";
-	GE("muteButton").textContent = "Mute";
+	// 4. Remote media elements cleanup
+	const remoteVideo = GE("remoteVideo");
+	if (remoteVideo) remoteVideo.srcObject = null;
+	const remoteAudio = GE("remoteAudio");
+	if (remoteAudio) {
+		remoteAudio.pause();
+		remoteAudio.srcObject = null;
+	}
 	
-	if (returnToChat) {
-		showE("chatPage");
-		hideE("roomsPage");
-		hideE("callPage");
-		if (currentRoom) {
-			openRoom(currentRoom);
+	// 5. Unsubscribe Firebase listeners
+	if (stopRoomSignalListener) {
+		stopRoomSignalListener();
+		stopRoomSignalListener = null;
+	}
+	if (stopRoomCandidatesListener) {
+		stopRoomCandidatesListener();
+		stopRoomCandidatesListener = null;
+	}
+	if (stopRoomMediaStateListener) {
+		stopRoomMediaStateListener();
+		stopRoomMediaStateListener = null;
+	}
+	if (stopRoomPresenceListener) {
+		stopRoomPresenceListener();
+		stopRoomPresenceListener = null;
+	}
+	if (roomPresenceInterval) {
+		clearInterval(roomPresenceInterval);
+		roomPresenceInterval = null;
+	}
+	
+	// 6. Clear presence and media state in Firebase
+	if (currentRoomData && currentUser) {
+		try {
+			await update(REF.rooms + "/" + currentRoomData.uid + "/presence/" + currentUser.uid, 0);
+			await update(REF.rooms + "/" + currentRoomData.uid + "/mediaState/" + currentUser.uid, {
+				cam: false,
+				mic: false,
+				ts: Date.now()
+			});
+		} catch (e) {
+			console.warn("Clear presence error:", e);
 		}
 	}
+	
+	remoteMediaState = { cam: false, mic: false, ts: 0 };
+	updateMediaUI();
+};
+
+window.backToRooms = async function() {
+	await closeRoomMedia();
+	await showRooms();
+};
+
+// Legacy compatibility shims
+window.callUser = async function() {
+	await toggleCamera();
+};
+
+window.endCall = async function(silent = false) {
+	await closeRoomMedia();
+};
+
+function startIncomingCallListener() {
+	// Voluntary media model
 }
 
-window.toggleMute =
-	function() {
-		if (!localStream) {
-			return;
-		}
-		
-		const tracks = localStream.getAudioTracks();
-		
-		if (!tracks.length) {
-			return;
-		}
-		
-		isMuted = !isMuted;
-		for ( const track of tracks ) {
-			track.enabled = !isMuted;
-		}
-		
-		GE("muteButton").textContent =
-			isMuted
-				? "Unmute"
-				: "Mute";
-	};
+function stopIncomingCallListener() {
+	// No-op
+}
+
+function showCallPage(heading, person, buttonText) {
+	// No-op
+}
+
+function hideCallPage() {
+	// No-op
+}
+
+window.toggleMute = function() {
+	toggleMic();
+};
 
 function createRejectButton() {
-	let button = GE("rejectCallButton");
-	
-	if (button) {
-		return button;
-	}
-	
-	button = CE("button");
-	button.id = "rejectCallButton";
-	button.textContent = "Reject";
-	
-	button.onclick =
-		function() {
-			rejectCall();
-		};
-
-	GE("callPage").insertBefore(
-		button,
-		GE("muteButton")
-	);
-	
-	return button;
+	return null;
 }
-
-GE("callButton").disabled =
-	true;
-
-// ----------------------------------------------------------------
-// ----------------------------------------------------------------
 
 (function initSidebar() {
 	const bar = document.getElementById("controlBanner");
