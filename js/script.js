@@ -4005,9 +4005,9 @@ const EXPRESS_TURN_CONFIG = {
 };
 
 function getRtcConfiguration() {
-	const turnUrls = (typeof window !== "undefined" && window.EXPRESSTURN_URLS) ? window.EXPRESSTURN_URLS : EXPRESS_TURN_CONFIG.urls;
-	const turnUser = (typeof window !== "undefined" && window.EXPRESSTURN_USERNAME) ? window.EXPRESSTURN_USERNAME : EXPRESS_TURN_CONFIG.username;
-	const turnCred = (typeof window !== "undefined" && window.EXPRESSTURN_CREDENTIAL) ? window.EXPRESSTURN_CREDENTIAL : EXPRESS_TURN_CONFIG.credential;
+	const turnUrls = EXPRESS_TURN_CONFIG.urls;
+	const turnUser = EXPRESS_TURN_CONFIG.username;
+	const turnCred = EXPRESS_TURN_CONFIG.credential;
 
 	const iceServers = [
 		{
@@ -4026,7 +4026,7 @@ function getRtcConfiguration() {
 
 	return {
 		iceServers: iceServers,
-		iceTransportPolicy: "relay",  // for force TURN tower testing
+		//iceTransportPolicy: "relay",  // for force TURN tower testing
 		iceCandidatePoolSize: 10
 	};
 }
