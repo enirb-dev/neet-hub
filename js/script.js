@@ -219,15 +219,26 @@ function waitForClick(button) {
 	});
 }
 
-function formatDate(dat) {
+function formatDate(dat, format=1) {
 	let d = new Date(dat);
 	
-	let tmp = `${String(d.getDate()).padStart(2, "0")}/` +
-	`${String(d.getMonth() + 1).padStart(2, "0")} ` +
-	//+ `/${d.getFullYear()} ` +
-	`${String(d.getHours()).padStart(2, "0")}:` +
-	`${String(d.getMinutes()).padStart(2, "0")}`;
-	//+ `:${String(d.getSeconds()).padStart(2, "0")}`;
+	let tmp;
+
+	if (format == 1) {
+		tmp = `${String(d.getDate()).padStart(2, "0")}/` +
+		`${String(d.getMonth() + 1).padStart(2, "0")} ` +
+		//+ `/${d.getFullYear()} ` +
+		`${String(d.getHours()).padStart(2, "0")}:` +
+		`${String(d.getMinutes()).padStart(2, "0")}`;
+		//+ `:${String(d.getSeconds()).padStart(2, "0")}`;
+	} else if (format == 2) {
+		tmp = `${String(d.getHours()).padStart(2, "0")}:` +
+		`${String(d.getMinutes()).padStart(2, "0")}`;
+	} else if (format == 3) {
+		tmp = `${String(d.getHours()).padStart(2, "0")}:` +
+		`${String(d.getMinutes()).padStart(2, "0")}` +
+		`:${String(d.getSeconds()).padStart(2, "0")}`;
+	}
 	
 	return tmp;
 }
@@ -1086,7 +1097,9 @@ async function chatPageUpdate() {
 				}
 				showE("onlineDot");
 			} else {
-				GE("onlineHasher").textContent = "Offline"; hideE("onlineDot");
+				//GE("onlineHasher").textContent = "Offline";
+				GE("onlineHasher").textContent = "Last Seen: " + formatDate(seenOther, 2);
+				hideE("onlineDot");
 			}
 		}
 	} else {
