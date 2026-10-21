@@ -103,6 +103,32 @@ const REF = {
 	reactions: BASE + "/config/reactions"
 };
 
+// Hoisted utilities & constants to avoid Temporal Dead Zone (TDZ)
+function delay(ms) {
+	return new Promise(resolve => setTimeout(resolve, ms));
+}
+
+const UPLOADER = "https://script.google.com/macros/s/AKfycbyt9tZA8hsJLoLiNWvgF3U-NO7QOHWe_kCS0RvylN_VNWqAZ6sSGUq6AlQVXpQsrFR4/exec";
+
+let CACHE = {
+	replying: null,
+	hacker: false,
+	recording: null,
+	recorded: null,
+	loading: false,
+	testing: true,
+	inspecting: false,
+	typingIndicator: false,
+	pinnedHash: 0,
+	audioChunks: [],
+	reactions: {},
+	rxnList: null
+};
+
+let currentMenu = null;
+let MDB = null;
+
+
 function GE(element) { return document.getElementById(element); }
 function CE(element) { return document.createElement(element); }
 function usernameToEmail(uname) { return uname + "@neethub.enirb.in" }
@@ -524,26 +550,27 @@ async function loadCachedFile(fId, type="Image", forceRedownload=false) {
 	}
 	
 	if (!forceRedownload) {
-		console.log(type + " not Cached. Downlaoding: ", fId);
+		console.log(type + " not Cached. Downloading: ", fId);
 	} else {
-		console.log(type + " force redownlaoding: ", fId);
+		console.log(type + " force redownloading: ", fId);
 	}
 	
 	const downloadUrl = `${UPLOADER}?fileId=${encodeURIComponent(fId)}`;
 	const response = await window.fetch(downloadUrl);
 	
 	if (!response.ok) {
-		throw new Error(type + " Download Failed: HTTP ", response.status, " Message: ", response.message || "NaN");
+		throw new Error(`${type} Download Failed: HTTP ${response.status} Message: ${response.statusText || "NaN"}`);
 	}
 	
 	const raw = await response.text();
 	//console.log("Script Response: ", raw);
 	
 	const result = JSON.parse(raw);
+	if (!result || result.status !== "success" || !result.base64Data) {
+		throw new Error(`${type} download failed: ${result?.message || "Invalid payload received"}`);
+	}
 	
 	console.log("Result Data: ", result.base64Data?.length, result.mimeType);
-	
-	//const result = response.json();
 	
 	const binary = atob(result.base64Data);
 	const bytes = new Uint8Array(binary.length);
@@ -586,16 +613,7 @@ let emergencyEnabled = true;
 let notificationsEnabled = false;
 let notifiedCache = [];
 
-let CACHE = {};
-CACHE.replying = null;
-CACHE.hacker = false;
-CACHE.recording = null;
-CACHE.recorded = null;
-CACHE.loading = false;
-CACHE.testing = true;
-
-let currentMenu = null;
-let MDB = null;
+// CACHE, currentMenu, and MDB hoisted to top
 
 let fileDialogOpen = false;
 
@@ -607,7 +625,7 @@ let offsetX = 0;
 let offsetY = 0;
 
 
-emergencyBubble.addEventListener("pointerdown", function(event) {
+if (emergencyBubble) emergencyBubble.addEventListener("pointerdown", function(event) {
 	dragging = true;
 	moved = false;
 	
@@ -619,7 +637,7 @@ emergencyBubble.addEventListener("pointerdown", function(event) {
 	emergencyBubble.setPointerCapture(event.pointerId);
 });
 
-emergencyBubble.addEventListener("pointermove", function(event) {
+if (emergencyBubble) emergencyBubble.addEventListener("pointermove", function(event) {
 	if (!dragging) {return;}
 	
 	moved = true;
@@ -639,7 +657,7 @@ emergencyBubble.addEventListener("pointermove", function(event) {
 	emergencyBubble.style.bottom = "auto";
 });
 
-emergencyBubble.addEventListener("pointerup", function(event) {
+if (emergencyBubble) emergencyBubble.addEventListener("pointerup", function(event) {
 	dragging = false;
 	
 	emergencyBubble.releasePointerCapture(event.pointerId);
@@ -746,12 +764,12 @@ function isFileTrigger(e) {
 document.addEventListener("pointerdown", e => { if (isFileTrigger(e)) armFileDialog(); }, true);
 document.addEventListener("click",       e => { if (isFileTrigger(e)) armFileDialog(); }, true);
 
-fileInput.addEventListener("change", () => {
+if (fileInput) fileInput.addEventListener("change", () => {
 	updateSelectedFilesUI();
 	setTimeout(() => { fileDialogOpen = false; }, 300);
 });
 
-fileInput.addEventListener("cancel", () => {
+if (fileInput) fileInput.addEventListener("cancel", () => {
 	setTimeout(() => { fileDialogOpen = false; }, 300);
 });
 
@@ -1176,15 +1194,17 @@ let hasMoreMessages = true;
 
 const MESSAGE_CHUNK = 50;
 
-GE("messages").addEventListener(
-	"scroll",
-	function() {
-
-		if (this.scrollTop <= 100) {
-			loadOlderMessages();
+const msgsContainer = GE("messages");
+if (msgsContainer) {
+	msgsContainer.addEventListener(
+		"scroll",
+		function() {
+			if (this.scrollTop <= 100) {
+				loadOlderMessages();
+			}
 		}
-	}
-);
+	);
+}
 
 async function loadOlderMessages() {
 	if (
@@ -1648,7 +1668,7 @@ async function startMessageListener(messageRef, inspecting=false) {
 		name.className = "sender-name";
 		name.textContent = message.senderName || "Unknown";
 		name.style.display = "block";
-		name.style.marginBotton = "10px";
+		name.style.marginBottom = "10px";
 		
 		div.dataset.messageId = messageId;
 		div.dataset.pinned = message.pinned ? "1" : "0";
@@ -1659,12 +1679,10 @@ async function startMessageListener(messageRef, inspecting=false) {
 		
 		let formatted;
 		
-		if (!message.time) {
-			message.time = null;
-		}
-		
-		if (message.time !== null) {
+		if (message.time) {
 			formatted = formatDate(message.time * 1000);
+		} else if (message.tstamp) {
+			formatted = formatDate(message.tstamp);
 		} else {
 			formatted = "TimeStampError";
 		}
@@ -1716,7 +1734,7 @@ async function startMessageListener(messageRef, inspecting=false) {
 		if (message.type == "text") {
 			dat = CE("span");
 			
-			const emojiRegex = /^\p{RGI_Emoji}+$/v;
+			const emojiRegex = /^(?:\p{Extended_Pictographic}|\p{Emoji_Presentation})+$/u;
 			const emojiSize = "75px";
 			dat.textContent = message.data;
 			
@@ -1845,7 +1863,7 @@ async function startMessageListener(messageRef, inspecting=false) {
 						let bs = bigVid.style;
 						
 						bs.maxWidth = "95vw";
-						bs.maxHeight = "95vw";
+						bs.maxHeight = "95vh";
 						bs.objectFit = "contain";
 						bs.borderRadius = "8px";
 						
@@ -1875,7 +1893,7 @@ async function startMessageListener(messageRef, inspecting=false) {
 					vidCont.style.borderRadius = "8px";
 					vidCont.style.objectFit = "contain";
 					
-					vidCont.onloadmetadata = () => {
+					vidCont.onloadedmetadata = () => {
 						// requestAnimationFrame(() => {
 							// cont.scrollTop = cont.scrollHeight;
 						// });
@@ -1922,7 +1940,7 @@ async function startMessageListener(messageRef, inspecting=false) {
 					
 					audioCont.controls = true;
 					
-					audioCont.onloadmetadata = () => {
+					audioCont.onloadedmetadata = () => {
 						// requestAnimationFrame(() => {
 							// cont.scrollTop = cont.scrollHeight;
 						// });
@@ -2194,7 +2212,7 @@ async function startMessageListener(messageRef, inspecting=false) {
 	cont.scrollTop = cont.scrollHeight;
 }
 
-const delay = (ms) => new Promise(resolve => setTimeout(resolve, ms));
+// delay is hoisted at the top of the file
 
 async function updateLastSeen() {
 	if (!currentUser) { return; }
@@ -2241,29 +2259,36 @@ function startNotificationListener() {
 }
 
 async function checkNotifications() {
-	if (!currentUser) { return; }
+	if (!currentUser || !notificationsEnabled) { return; }
 	
-	if (!notificationsEnabled) { return; }
-	
-	const notifU = Object.entries(await fetch(REF.users + "/" + currentUser.uid + "/notifications"));
-	
-	for (const [notifId, notif] of notifU) {
-		if (notifId in notifiedCache) { return; }
+	try {
+		const rawNotifs = await fetch(REF.users + "/" + currentUser.uid + "/notifications");
+		if (!rawNotifs) return;
 		
-		if (currentRoomData.name == notif[0]) {
-			await remove(ref(REF.users + "/" + currentUser.uid + "/notifications" + notifId));
-			continue;
+		const notifU = Object.entries(rawNotifs);
+		for (const [notifId, notif] of notifU) {
+			if (!notif || notifiedCache.includes(notifId)) continue;
+			
+			if (currentRoomData && notif.room === currentRoom) {
+				await remove(ref(db, REF.users + "/" + currentUser.uid + "/notifications/" + notifId));
+				continue;
+			}
+			
+			const rName = notif.roomName || "Room";
+			const sName = notif.senderName || "Someone";
+			
+			if (notif.type == 1) {
+				await notify("Neet-Hub", `Message from ${rName} by ${sName}.`);
+				notifiedCache.push(notifId);
+			} else if (notif.type == 2 || notif.type == 3) {
+				await notify("Neet-Hub", notif.text || `Incoming connection from ${rName} by ${sName}.`);
+				notifiedCache.push(notifId);
+			}
+			
+			await remove(ref(db, REF.users + "/" + currentUser.uid + "/notifications/" + notifId));
 		}
-		
-		if (notif[2] == 1) {
-			await notify("Neet-Hub", `Message from ${notif[0]} by ${notif[1]}.`);
-		}
-		
-		if (notif[2] == 2) {
-			await notify("Neet-Hub", `Incoming Call from ${notif[0]} by ${notif[1]}.`);
-		}
-		
-		await remove(ref(REF.users + "/" + currentUser.uid + "/notifications" + notifId));
+	} catch (err) {
+		console.warn("checkNotifications error:", err);
 	}
 	
 	return;
@@ -2301,17 +2326,22 @@ setInterval(updateLastSeen, 500);
 // setInterval(checkNotifications, 500);
 
 async function notify(head, notif) {
+	if (!("Notification" in window)) {
+		return;
+	}
 	if (Notification.permission !== "granted") {
 		const permission = await Notification.requestPermission();
-		
 		if (permission !== "granted") {
 			return;
 		}
 	}
-	
-	new Notification(head, {
-		body: notif
-	});
+	try {
+		new Notification(head, {
+			body: notif
+		});
+	} catch (e) {
+		console.warn("Notification error:", e);
+	}
 }
 
 window.toggleNotifications = async function() {
@@ -2530,9 +2560,9 @@ function updateSelectedFilesUI() {
 	}
 }
 
-GE("messageFile").addEventListener("change", updateSelectedFilesUI);
+const mFileEl = GE("messageFile"); if (mFileEl) mFileEl.addEventListener("change", updateSelectedFilesUI);
 
-const UPLOADER = "https://script.google.com/macros/s/AKfycbyt9tZA8hsJLoLiNWvgF3U-NO7QOHWe_kCS0RvylN_VNWqAZ6sSGUq6AlQVXpQsrFR4/exec";
+// UPLOADER hoisted to top
 
 async function uploadToDrive(file) {
 	return new Promise((resolve, reject) => {
@@ -2682,7 +2712,7 @@ async function openRoom(roomHash, inspecting=false) {
 	doneLoading();
 }
 
-GE("messageInput").addEventListener("input", async (event) => {
+const mInputEl = GE("messageInput"); if (mInputEl) mInputEl.addEventListener("input", async (event) => {
 	if (GE("messageInput").value == "") return;
 	if (!currentRoomData) return;
 	if (!currentUser) return;
@@ -2760,9 +2790,9 @@ window.showRooms = async function() {
 			//let tttt = await ask("Delete this Room? (Can't Be Undone) (Type YES)", "input");
 			//let ttt = tttt[0]?.trim().toLowerCase();
 			
-			let ttt = (await ask("Delete this Room? (Can't Be Undone) (Type YES)", "input"))[0];
-			if (ttt === null) return;
-			ttt = ttt.toLowerCase();
+			let tttRes = await ask("Delete this Room? (Can't Be Undone) (Type YES)", "input");
+			if (!tttRes || !tttRes[0]) { emergencyEnabled = t; return; }
+			let ttt = tttRes[0].trim().toLowerCase();
 			
 			let ch = (ttt == "yes");
 			
@@ -2897,8 +2927,9 @@ window.showLog = async function(user=false) {
 		showLoadingScreen();
 	} else if (user === true) {			
 		const users = await fetch(REF.users);
-		let memberName = (await ask("Enter UserName:", "input"))[0];
-		if (!memberName) { await dialog("User Not Found.", true); backToAdmin(); return; }
+		let res = await ask("Enter UserName:", "input");
+		if (!res || !res[0]) { await dialog("User Not Found.", true); backToAdmin(); return; }
+		let memberName = res[0].trim().toLowerCase();
 		
 		memberName = memberName.trim().toLowerCase();
 		
@@ -2969,9 +3000,9 @@ window.showLog = async function(user=false) {
 	} catch (err) {
 		console.error("Could not load logs:", err);
 		cont.textContent = "Error loading logs: " + err.message;
+	} finally {
+		doneLoading();
 	}
-	
-	doneLoading();
 };
 
 window.manageAccounts = async function() {
@@ -2986,6 +3017,7 @@ window.manageAccounts = async function() {
 	
 	if (!data) {
 		cont.textContent = "No accounts found.";
+		doneLoading();
 		return;
 	}
 	
@@ -3133,6 +3165,7 @@ window.managehistory = async function() {
 	
 	if (!data) {
 		cont.textContent = "No history Yet.";
+		doneLoading();
 		return;
 	}
 	
@@ -3193,11 +3226,12 @@ window.managehistory = async function() {
 };
 
 async function deleteAccount(acc) {
-	
-	//let uid = await AdminSDK.getUserByEmail(usernameToEmail(acc));
-	//await AdminSDK.completelyDeleteUser(uid);
-	
-	Log(`Deleted Account: ${acc}`, false);
+	try {
+		await remove(ref(db, REF.users + "/" + acc));
+		Log(`Deleted Account: ${acc}`, false);
+	} catch (err) {
+		console.error("Delete Account Error:", err);
+	}
 	manageAccounts();
 }
 
@@ -3583,7 +3617,7 @@ window.system = async function(hash) {
 	if (hash == 4) { await update(REF.frozen, false); Log("System Unfrozen.", false); }
 	if (hash == 5) { await remove(ref(db, currentOpenLog)).catch(err => console.log(`Log Deletion Error. (${currentOpenLog})`)); Log("Logs Cleared.", currentOpenLog); showLog(currentOpenLog); }
 	
-	if (0 <= hash <= 5) { dialog("Success.", 500); }
+	if (hash >= 0 && hash <= 5) { dialog("Success.", 500); }
 	
 };
 
@@ -3602,6 +3636,9 @@ window.admin = async function(hash) {
 }
 
 window.createRoom = async function() {
+	const existingDiv = GE("cRoom");
+	if (existingDiv) existingDiv.remove();
+	
 	const div = CE("div");
 	div.id = "cRoom";
 	div.className = "pageStyleB";
@@ -3617,7 +3654,7 @@ window.createRoom = async function() {
 			by: null,
 			at: null
 		}
-	}
+	};
 	
 	const roomB = {
 		uid: null,
@@ -3630,10 +3667,10 @@ window.createRoom = async function() {
 			data: null,
 			tstamp: 0
 		}
-	}
+	};
 	
 	const txt = CE("span");
-	txt.textContent = "Enter Room Name:"
+	txt.textContent = "Enter Room Name:";
 	
 	const inp = CE("input");
 	inp.id = "rInput";
@@ -3641,58 +3678,113 @@ window.createRoom = async function() {
 	const but = CE("button");
 	but.textContent = "Ok";
 	
-	div.appendChild(txt); div.appendChild(inp); div.appendChild(but);
+	const cancelBut = CE("button");
+	cancelBut.textContent = "Cancel";
+	cancelBut.className = "B";
+	cancelBut.style.marginLeft = "8px";
+	
+	let isCancelled = false;
+	cancelBut.onclick = () => {
+		isCancelled = true;
+		div.remove();
+	};
+	
+	const onKeyEnter = (e) => {
+		if (e.key === "Enter") {
+			e.preventDefault();
+			but.click();
+		}
+	};
+	inp.addEventListener("keydown", onKeyEnter);
+	
+	div.appendChild(txt); div.appendChild(inp); div.appendChild(but); div.appendChild(cancelBut);
 	_showE(div);
 	
 	GE("roomsPage").appendChild(div);
+	inp.focus();
 	
-	await waitForClick(but);
-	
-	room.name = inp.value.trim();
-	roomB.name = inp.value.trim();
+	while (true) {
+		await waitForClick(but);
+		if (isCancelled) return;
+		const rName = inp.value.trim();
+		if (!rName) {
+			txt.textContent = "Room Name cannot be empty. Enter Room Name:";
+			inp.focus();
+			continue;
+		}
+		room.name = rName;
+		roomB.name = rName;
+		break;
+	}
 	
 	txt.textContent = "Enter Member Username (leave blank to finish):";
 	inp.value = "";
+	inp.focus();
 	
 	const users = await fetch(REF.users);
 	
 	while (true) {
 		await waitForClick(but);
+		if (isCancelled) return;
 		const memberName = inp.value.trim().toLowerCase();
 		
-		if (memberName == "") {
+		if (memberName === "") {
 			break;
 		}
 		
-		let found = false;
+		if (memberName === (currentUsername || "").toLowerCase()) {
+			txt.textContent = "You cannot add yourself. Enter Member Username (leave blank to finish):";
+			inp.value = "";
+			inp.focus();
+			continue;
+		}
+		
+		let targetUid = null;
+		let targetUser = null;
 		
 		if (users) {
 			for (const [uid, user] of Object.entries(users)) {
-				if (user.username == memberName) {
-					if (user?.options?.canMessage == 'all' || user?.options?.knowns.contains(currentUser.uid)) {
-						room.users.push(uid);
-						roomB.users.push(uid);
-						roomB.usernames.push(user.username);
-						found = true;
-						break;
-					} else {
-						txt.textContent = "Not allowed by their Privacy Settings.";
-						inp.value = "";
-						break;
-					}
+				if (user.username && user.username.toLowerCase() === memberName) {
+					targetUid = uid;
+					targetUser = user;
+					break;
 				}
 			}
 		}
 		
-		if (!found) {
-			txt.textContent = "User not found. Enter Member Username:";
+		if (!targetUid || !targetUser) {
+			txt.textContent = `User "${memberName}" not found. Enter Member Username (leave blank to finish):`;
 			inp.value = "";
+			inp.focus();
 			continue;
 		}
 		
-		txt.textContent = "Enter Member Username (leave blank to finish):";
-		inp.value = "";
+		if (room.users.includes(targetUid)) {
+			txt.textContent = `User "${targetUser.username}" already added. Enter next Member (leave blank to finish):`;
+			inp.value = "";
+			inp.focus();
+			continue;
+		}
+		
+		// Privacy settings check: default allows messaging unless explicitly restricted
+		const canMessage = targetUser?.options?.canMessage ?? "all";
+		const isKnown = Array.isArray(targetUser?.options?.knowns) && targetUser.options.knowns.includes(currentUser.uid);
+		
+		if (canMessage === "all" || isKnown) {
+			room.users.push(targetUid);
+			roomB.users.push(targetUid);
+			roomB.usernames.push(targetUser.username);
+			txt.textContent = `Added ${targetUser.username}! Enter next Member (leave blank to finish):`;
+			inp.value = "";
+			inp.focus();
+		} else {
+			txt.textContent = `Not allowed by ${targetUser.username}'s Privacy Settings. Enter another Member:`;
+			inp.value = "";
+			inp.focus();
+		}
 	}
+	
+	inp.removeEventListener("keydown", onKeyEnter);
 	
 	room.users.push(currentUser.uid);
 	roomB.users.push(currentUser.uid);
@@ -3707,20 +3799,23 @@ window.createRoom = async function() {
 		roomB
 	);
 	
-	_hideE(div);
+	div.remove();
 	
 	Log(`Room Created: ${room.uid}:${room.name}`, false);
 	Log(`Room Created: ${room.uid}:${room.name}`);
 	showRooms();
+};
+
+
+const mInputKeyEl = GE("messageInput");
+if (mInputKeyEl) {
+	mInputKeyEl.addEventListener(
+		"keydown",
+		function(event) {
+			if (event.key === "Enter") { sendMessage(); }
+		}
+	);
 }
-
-
-GE("messageInput").addEventListener(
-	"keydown",
-	function(event) {
-		if (event.key === "Enter") { sendMessage(); }
-	}
-);
 
 
 // ----------------------------------------------------------------
@@ -3770,7 +3865,10 @@ window.register = async function() {
 				createdAt: Date.now(),
 				lastSeen: 0,
 				notifications: {},
-				options: {}
+				options: {
+					canMessage: "all",
+					knowns: []
+				}
 			}
 			
 		);
@@ -3792,27 +3890,13 @@ window.login = async function() {
 	let pass = GE("password").value.trim();
 	
 	if (!user || !pass) {
-		if (!CACHE.testing) {
-			if (!user && !pass) {
-				await dialog("Unauthorized Test User Access Denied. This action has been recorded, and should not be retried.", true);
-				Log("Unauthorized Test Access Attempted.", false);
-				doneLoading();
-				return;
-			}
-			
+		if (CACHE.testing && !user && !pass) {
+			user = "test";
+			pass = "test1234";
+		} else {
 			setLoginStatus("Enter username and Password.");
 			doneLoading();
 			return;
-		} else {
-			if (!user && !pass) {
-				await dialog("Unauthorized Test User Access Denied. This action has been recorded, and should not be retried.", true);
-				Log("Unauthorized Test Access Attempted.", false);
-				doneLoading();
-				return;
-			}
-			
-			user = "test";
-			pass = "test1234";
 		}
 	}
 	
@@ -3906,22 +3990,56 @@ onAuthStateChanged(
 // ----------------------------------------------------------------
 
 
-const rtcConfiguration = {
-	iceServers: [
+// ----------------------------------------------------------------
+// WebRTC & ExpressTURN Tower Configuration
+// ----------------------------------------------------------------
+// ExpressTURN Tower Configuration: High reliability NAT traversal with UDP, TCP and TLS fallback
+// You can supply credentials via window.EXPRESSTURN_USERNAME / window.EXPRESSTURN_CREDENTIAL
+// or configure them directly in EXPRESS_TURN_CONFIG below.
+const EXPRESS_TURN_CONFIG = {
+	urls: [
+		"turn:free.expressturn.com:3478",
+	],
+	username: "000000002107959047",
+	credential: "gzl45xnCQQvZbX3QGpibMbjQChQ="
+};
+
+function getRtcConfiguration() {
+	const turnUrls = (typeof window !== "undefined" && window.EXPRESSTURN_URLS) ? window.EXPRESSTURN_URLS : EXPRESS_TURN_CONFIG.urls;
+	const turnUser = (typeof window !== "undefined" && window.EXPRESSTURN_USERNAME) ? window.EXPRESSTURN_USERNAME : EXPRESS_TURN_CONFIG.username;
+	const turnCred = (typeof window !== "undefined" && window.EXPRESSTURN_CREDENTIAL) ? window.EXPRESSTURN_CREDENTIAL : EXPRESS_TURN_CONFIG.credential;
+
+	const iceServers = [
 		{
-			urls: "stun:stun.l.google.com:19302"
+			urls: [
+				"stun:stun.l.google.com:19302",
+				"stun:stun1.l.google.com:19302",
+				"stun:relay1.expressturn.com:3478"
+			]
 		},
 		{
-			urls: "stun:stun1.l.google.com:19302"
+			urls: turnUrls,
+			username: turnUser,
+			credential: turnCred
 		}
-	]
-};
+	];
+
+	return {
+		iceServers: iceServers,
+		iceTransportPolicy: "relay",  // for force TURN tower testing
+		iceCandidatePoolSize: 10
+	};
+}
+
+let rtcConfiguration = getRtcConfiguration();
 
 // ----------------------------------------------------------------
 // Voluntary Media & Calling System
 // ----------------------------------------------------------------
 
 let currentRoomSession = 0;
+let makingOffer = false;
+let ignoreOffer = false;
 
 let localCameraStream = null;
 let localMicStream = null;
@@ -4120,6 +4238,7 @@ async function ensurePeerConnection() {
 	pc.onnegotiationneeded = async () => {
 		if (currentRoomSession !== mySession || !currentRoomData) return;
 		try {
+			makingOffer = true;
 			await pc.setLocalDescription();
 			await set(ref(db, signalPath + "/description"), {
 				from: currentUser.uid,
@@ -4128,6 +4247,8 @@ async function ensurePeerConnection() {
 			});
 		} catch (err) {
 			console.error("Negotiation error:", err);
+		} finally {
+			makingOffer = false;
 		}
 	};
 	
@@ -4225,8 +4346,8 @@ async function initRoomMediaListeners() {
 	
 	// 4. Perfect Negotiation signaling listener
 	const polite = currentUser.uid > otherUid;
-	let makingOffer = false;
-	let ignoreOffer = false;
+	makingOffer = false;
+	ignoreOffer = false;
 	
 	stopRoomSignalListener = onValue(ref(db, signalPath + "/description"), async (snapshot) => {
 		if (currentRoomSession !== mySession) return;
@@ -4729,7 +4850,7 @@ window.closeRoomMedia = async function() {
 		roomPresenceInterval = null;
 	}
 	
-	// 6. Clear presence and media state in Firebase
+	// 6. Clear presence, media state and webrtc signals in Firebase
 	if (currentRoomData && currentUser) {
 		try {
 			await update(REF.rooms + "/" + currentRoomData.uid + "/presence/" + currentUser.uid, 0);
@@ -4738,8 +4859,9 @@ window.closeRoomMedia = async function() {
 				mic: false,
 				ts: Date.now()
 			});
+			await remove(ref(db, REF.rooms + "/" + currentRoomData.uid + "/webrtc/candidates/" + currentUser.uid));
 		} catch (e) {
-			console.warn("Clear presence error:", e);
+			console.warn("Clear presence/signaling error:", e);
 		}
 	}
 	
@@ -4785,7 +4907,7 @@ function createRejectButton() {
 	return null;
 }
 
-(function initSidebar() {
+function initSidebar() {
 	const bar = document.getElementById("controlBanner");
 	const toggleBtn = document.getElementById("sideToggle");
 	const topBar = document.getElementById("bannerTop");
@@ -4831,4 +4953,10 @@ function createRejectButton() {
 	
 	setCollapsed(true);
 	syncLayout();
-})();
+}
+
+if (document.readyState === "loading") {
+	document.addEventListener("DOMContentLoaded", initSidebar);
+} else {
+	initSidebar();
+}
