@@ -4026,7 +4026,7 @@ function getRtcConfiguration() {
 
 	return {
 		iceServers: iceServers,
-		//iceTransportPolicy: "relay",  // for force TURN tower testing
+		// iceTransportPolicy: "relay",  // for force TURN tower testing
 		iceCandidatePoolSize: 10
 	};
 }
