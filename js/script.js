@@ -464,8 +464,12 @@ async function showLoadingScreen() {
 	hideE("query_q");
 }
 
-function doneLoading() {
+async function doneLoading() {
+	if (!(CACHE.loading === true)) return;
 	CACHE.loading = null;
+	while (CACHE.loading !== false) {
+		await delay(250);
+	}
 }
 
 window.queryPageButtonClicked = function(tmp) {
@@ -1524,7 +1528,7 @@ function clearScheduledTimers() {
 
 async function startMessageListener(messageRef, inspecting=false) {
 	clearScheduledTimers();
-
+	
 	if (stopMessageListener) {
 		stopMessageListener();
 		stopMessageListener = null;
@@ -2617,13 +2621,11 @@ async function uploadToDrive(file) {
 
 async function openRoom(roomHash, inspecting=false) {
 	showLoadingScreen();
-
-	// Close any media from a previous room
+	
 	if (typeof closeRoomMedia === "function") {
 		await closeRoomMedia();
 	}
-
-	// read-only admin view: reactions (card clicks, menu, everything) check this flag
+	
 	CACHE.inspecting = inspecting;
 
 	hideE("roomsPage");
@@ -2722,7 +2724,8 @@ async function openRoom(roomHash, inspecting=false) {
 	await startMessageListener(ref(db, roomHash + "/messages"), inspecting);
 	refreshPinned();
 	
-	doneLoading();
+	await doneLoading();
+	console.log("Loaded Room.");
 }
 
 const mInputEl = GE("messageInput"); if (mInputEl) mInputEl.addEventListener("input", async (event) => {
@@ -2828,7 +2831,7 @@ window.showProfile = async function() {
 	showE("profilePage");
 	
 	let profileData = GE("profileFunctional");
-	profileData.value = "";
+	profileData.innerHTML = "";
 	
 	let head = CE("span");
 	head.textContent = `Username:    ${currentUsername}`;
@@ -3014,7 +3017,7 @@ window.showLog = async function(user=false) {
 		console.error("Could not load logs:", err);
 		cont.textContent = "Error loading logs: " + err.message;
 	} finally {
-		doneLoading();
+		await doneLoading();
 	}
 };
 
@@ -3030,7 +3033,7 @@ window.manageAccounts = async function() {
 	
 	if (!data) {
 		cont.textContent = "No accounts found.";
-		doneLoading();
+		await doneLoading();
 		return;
 	}
 	
@@ -3062,7 +3065,7 @@ window.manageAccounts = async function() {
 		cont.appendChild(div);
 	}
 	
-	doneLoading();
+	await doneLoading();
 	Log("Account Manager Opened.", false);
 };
 
@@ -3079,7 +3082,7 @@ window.showAllRooms = async function() {
 	
 	if (!data) {
 		cont.textContent = "No Rooms Created.";
-		doneLoading();
+		await doneLoading();
 		return;
 	}
 	
@@ -3119,7 +3122,7 @@ window.showAllRooms = async function() {
         cont.appendChild(CE("hr"));
     }
     
-    doneLoading();
+    await doneLoading();
 };
 
 window.showLastSeens = async function() {
@@ -3134,7 +3137,7 @@ window.showLastSeens = async function() {
 	
 	if (!data) {
 		cont.textContent = "No accounts found.";
-		doneLoading();
+		await doneLoading();
 		return;
 	}
 	
@@ -3162,7 +3165,7 @@ window.showLastSeens = async function() {
 		cont.appendChild(div);
 	}
 	
-	doneLoading();
+	await doneLoading();
 	Log("Account Manager Opened.", false);
 };
 
@@ -3178,7 +3181,7 @@ window.managehistory = async function() {
 	
 	if (!data) {
 		cont.textContent = "No history Yet.";
-		doneLoading();
+		await doneLoading();
 		return;
 	}
 	
@@ -3234,7 +3237,7 @@ window.managehistory = async function() {
 		cont.appendChild(div);
 	}
 	
-	doneLoading();
+	await doneLoading();
 	Log("History Manager Opened.", false);
 };
 
@@ -3908,14 +3911,14 @@ window.login = async function() {
 			pass = "test1234";
 		} else {
 			setLoginStatus("Enter username and Password.");
-			doneLoading();
+			await doneLoading();
 			return;
 		}
 	}
 	
 	if ((await fetch(REF.frozen) === true) && (user !== "admin")) {
 		setLoginStatus("System Frozen by Admin.");
-		doneLoading();
+		await doneLoading();
 		return;
 	}
 	const email = usernameToEmail(user)
@@ -3930,7 +3933,7 @@ window.login = async function() {
 	} catch (err) {
 		setLoginStatus("Error Loggin In: " + err.message);
 		Log(`Login Attempted User: ${user}`, false);
-		doneLoading();
+		await doneLoading();
 	}
 }
 
@@ -3960,7 +3963,7 @@ onAuthStateChanged(
 			hideE("callPage");
 			showE("adminPanel");
 			
-			doneLoading();
+			await doneLoading();
 			
 			Log("ADMIN LOGGED IN.", false);
 			return;
@@ -3980,7 +3983,7 @@ onAuthStateChanged(
 		
 		startIncomingCallListener();
 		startNotificationListener();
-		doneLoading();
+		await doneLoading();
 		
 		openRoom(REF.globalChat);
 		
