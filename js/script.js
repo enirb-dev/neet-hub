@@ -15,6 +15,7 @@ import {
 	query,
 	orderByChild,
 	limitToLast,
+	limitToFirst,
 	endAt,
 	equalTo,
 	onChildChanged,
@@ -800,6 +801,11 @@ window.sendMessage = async function(recursive=false) {
 		return;
 	}
 	
+	// our own message must appear at the end of the chat, so leave any old chunk first
+	if (hasNewerMessages) {
+		await jumpToLatest();
+	}
+	
 	const input = GE("messageInput");
 	const fileInput = GE("messageFile");
 	
@@ -1208,9 +1214,24 @@ let messageChangedListener = null;
 let oldestMessageTime = null;
 let newestMessageTime = null;
 let loadingOlderMessages = false;
+let loadingNewerMessages = false;
 let hasMoreMessages = true;
 
+// hasNewerMessages === true means the screen shows an old chunk that is NOT connected to the
+// latest messages (we jumped there, e.g. from a pinned message). Live messages are not appended
+// in that state; newer chunks are loaded when scrolling down, or the view jumps to the latest.
+let hasNewerMessages = false;
+
+// true while the container is being cleared and refilled with a different chunk
+let switchingWindow = false;
+
+// bumped every time the container is replaced, so an in-flight load can tell it is stale
+let windowEpoch = 0;
+
 const MESSAGE_CHUNK = 50;
+
+// a target further away than this many messages is reached by jumping, not by loading
+const FAR_MESSAGES = MESSAGE_CHUNK * 3;
 
 const msgsContainer = GE("messages");
 if (msgsContainer) {
@@ -1220,13 +1241,109 @@ if (msgsContainer) {
 			if (this.scrollTop <= 100) {
 				loadOlderMessages();
 			}
+			
+			if (hasNewerMessages && this.scrollHeight - this.scrollTop - this.clientHeight <= 100) {
+				loadNewerMessages();
+			}
 		}
 	);
+}
+
+function releaseSwitch() {
+	// small delay so the scroll event caused by our own repositioning cannot trigger a load
+	setTimeout(() => { switchingWindow = false; }, 200);
+}
+
+function sortedEntries(snap) {
+	if (!snap || !snap.exists()) return [];
+	
+	const messages = Object.entries(snap.val());
+	messages.sort((a, b) => a[1].tstamp - b[1].tstamp);
+	return messages;
+}
+
+// Replaces the whole message list with the given (sorted) messages and records what is loaded.
+async function showMessageWindow(messages, hasOlder, hasNewer) {
+	const cont = GE("messages");
+	
+	windowEpoch++;
+	clearScheduledTimers();
+	cont.innerHTML = "";
+	
+	// Scheduled messages carry a future tstamp until revealed; keep them out of the bounds
+	const nowMs = Date.now();
+	const visible = messages.filter(m => m[1].tstamp <= nowMs);
+	
+	oldestMessageTime = visible.length > 0 ? visible[0][1].tstamp : null;
+	newestMessageTime = visible.length > 0 ? visible[visible.length - 1][1].tstamp : null;
+	hasMoreMessages = hasOlder;
+	hasNewerMessages = hasNewer;
+	
+	for (const [messageId, message] of messages) {
+		await renderMessage(messageId, message);
+	}
+}
+
+// Skips everything in between: shows only the chunk around `ts` (half a chunk before it,
+// a full chunk from it onwards). Leaves switchingWindow = true; the caller releases it
+// (releaseSwitch) after it has positioned the scroll.
+async function jumpToWindowAround(ts) {
+	if (!currentRoom) return false;
+	
+	const roomAtStart = currentRoom;
+	switchingWindow = true;
+	
+	const messageRef = ref(db, currentRoom + "/messages");
+	const half = Math.floor(MESSAGE_CHUNK / 2);
+	
+	const [newerSnap, olderSnap] = await Promise.all([
+		get(query(messageRef, orderByChild("tstamp"), startAt(ts), limitToFirst(MESSAGE_CHUNK))),
+		get(query(messageRef, orderByChild("tstamp"), endAt(ts - 1), limitToLast(half)))
+	]);
+	
+	if (roomAtStart !== currentRoom) return false;
+	
+	const older = sortedEntries(olderSnap);
+	const newer = sortedEntries(newerSnap);
+	
+	await showMessageWindow(
+		[...older, ...newer],
+		older.length >= half,
+		newer.length >= MESSAGE_CHUNK
+	);
+	
+	return true;
+}
+
+// Skips everything in between: replaces the list with the newest chunk and scrolls to the end.
+async function jumpToLatest() {
+	if (!currentRoom) return;
+	
+	const roomAtStart = currentRoom;
+	switchingWindow = true;
+	
+	try {
+		const snap = await get(query(
+			ref(db, currentRoom + "/messages"),
+			orderByChild("tstamp"),
+			limitToLast(MESSAGE_CHUNK)
+		));
+		
+		if (roomAtStart !== currentRoom) return;
+		
+		await showMessageWindow(sortedEntries(snap), true, false);
+		
+		const cont = GE("messages");
+		cont.scrollTop = cont.scrollHeight;
+	} finally {
+		releaseSwitch();
+	}
 }
 
 async function loadOlderMessages() {
 	if (
 		loadingOlderMessages ||
+		switchingWindow ||
 		!hasMoreMessages ||
 		!currentRoom
 	) {
@@ -1239,6 +1356,7 @@ async function loadOlderMessages() {
 	
 	loadingOlderMessages = true;
 	
+	const epoch = windowEpoch;
 	const cont = GE("messages");
 	
 	const oldHeight = cont.scrollHeight;
@@ -1260,17 +1378,15 @@ async function loadOlderMessages() {
 	try {
 		const snap = await get(olderQuery);
 		
+		// the list was replaced (room change / jump) while we were fetching
+		if (epoch !== windowEpoch) return;
+		
 		if (!snap.exists()) {
 			hasMoreMessages = false;
 			return;
 		}
 		
-		const data = snap.val();
-		const messages = Object.entries(data);
-		
-		messages.sort(
-			(a, b) => a[1].tstamp - b[1].tstamp
-		);
+		const messages = sortedEntries(snap);
 		
 		if (messages.length === 0) {
 			hasMoreMessages = false;
@@ -1307,6 +1423,55 @@ async function loadOlderMessages() {
 	}
 }
 
+// Only does something while the screen shows an old chunk (hasNewerMessages):
+// appends the next chunk below it. Once it catches up with the latest message the
+// view is connected again and live messages resume.
+async function loadNewerMessages() {
+	if (
+		loadingNewerMessages ||
+		switchingWindow ||
+		!hasNewerMessages ||
+		!currentRoom ||
+		newestMessageTime === null
+	) {
+		return;
+	}
+	
+	loadingNewerMessages = true;
+	
+	const epoch = windowEpoch;
+	const cont = GE("messages");
+	
+	try {
+		const snap = await get(query(
+			ref(db, currentRoom + "/messages"),
+			orderByChild("tstamp"),
+			startAt(newestMessageTime + 1),
+			limitToFirst(MESSAGE_CHUNK)
+		));
+		
+		if (epoch !== windowEpoch) return;
+		
+		const messages = sortedEntries(snap);
+		
+		const nowMs = Date.now();
+		const visible = messages.filter(m => m[1].tstamp <= nowMs);
+		
+		for (const [messageId, message] of messages) {
+			await renderMessage(messageId, message);
+		}
+		
+		if (visible.length > 0) {
+			newestMessageTime = visible[visible.length - 1][1].tstamp;
+		}
+		
+		// a short (or empty) result means we have reached the latest message
+		hasNewerMessages = visible.length > 0 && messages.length >= MESSAGE_CHUNK;
+	} finally {
+		loadingNewerMessages = false;
+	}
+}
+
 // ---- Flash highlight for a focused message (style injected once) ----
 (function() {
 	if (document.getElementById("msgFlashStyle")) return;
@@ -1330,9 +1495,20 @@ function flashMessage(el) {
 	setTimeout(() => el.classList.remove("msgFlash"), 1900);
 }
 
-// Scrolls to a message, loading older chunks first if it is not on screen yet.
+// Scrolls to a message, loading chunks first if it is not on screen yet.
+// - target within 3 chunks of what is loaded: the chunks in between are loaded normally
+// - target further away: everything in between is skipped and only the chunk around it is loaded
 // Used by the pinned bar and by reply banners. Returns true if the message was shown.
 async function focusMessage(targetId) {
+	try {
+		return await focusMessageInner(targetId);
+	} finally {
+		// a jump leaves the window switch locked until the scroll has been positioned
+		if (switchingWindow) releaseSwitch();
+	}
+}
+
+async function focusMessageInner(targetId) {
 	const cont = GE("messages");
 	const find = () => cont.querySelector(`[data-message-id="${targetId}"]`);
 	
@@ -1343,7 +1519,7 @@ async function focusMessage(targetId) {
 		if (!currentRoom) return false;
 		const roomAtStart = currentRoom;
 		
-		// the target's timestamp tells us how far back we need to load
+		// the target's timestamp tells us where we need to go
 		const ts = await fetch(currentRoom + "/messages/" + targetId + "/tstamp");
 		if (roomAtStart !== currentRoom) return false;
 		
@@ -1356,30 +1532,100 @@ async function focusMessage(targetId) {
 		document.body.style.cursor = "progress";
 		
 		try {
-			let stalls = 0;
+			// a scroll-triggered load may already be running
+			while (loadingOlderMessages || loadingNewerMessages || switchingWindow) await delay(50);
+			if (roomAtStart !== currentRoom) return false;
 			
-			while (
-				!target &&
-				hasMoreMessages &&
-				oldestMessageTime !== null &&
-				oldestMessageTime > ts
-			) {
+			target = find();
+			
+			if (!target) {
+				const messageRef = ref(db, currentRoom + "/messages");
+				let direction = null;
+				let far = false;
+				
+				if (oldestMessageTime !== null && ts < oldestMessageTime) {
+					direction = "older";
+					
+					// how many messages lie between the target and what is loaded?
+					const gap = await get(query(
+						messageRef,
+						orderByChild("tstamp"),
+						startAt(ts),
+						endAt(oldestMessageTime - 1),
+						limitToFirst(FAR_MESSAGES + 1)
+					));
+					far = gap.exists() && gap.size > FAR_MESSAGES;
+				} else if (hasNewerMessages && newestMessageTime !== null && ts > newestMessageTime) {
+					direction = "newer";
+					
+					const gap = await get(query(
+						messageRef,
+						orderByChild("tstamp"),
+						startAt(newestMessageTime + 1),
+						endAt(ts),
+						limitToFirst(FAR_MESSAGES + 1)
+					));
+					far = gap.exists() && gap.size > FAR_MESSAGES;
+				}
+				
 				if (roomAtStart !== currentRoom) return false;
 				
-				// a scroll-triggered load may already be running
-				while (loadingOlderMessages) await delay(50);
-				
-				const before = oldestMessageTime;
-				await loadOlderMessages();
-				loadedMore = true;
-				
-				target = find();
-				
-				if (oldestMessageTime === before) {
-					stalls++;
-					if (stalls >= 3) break;
-				} else {
-					stalls = 0;
+				if (direction && far) {
+					// too far: skip the middle, load only the chunk around the target
+					if (!(await jumpToWindowAround(ts))) return false;
+					loadedMore = true;
+				} else if (direction === "older") {
+					let stalls = 0;
+					
+					while (
+						!target &&
+						hasMoreMessages &&
+						oldestMessageTime !== null &&
+						oldestMessageTime > ts
+					) {
+						if (roomAtStart !== currentRoom) return false;
+						
+						while (loadingOlderMessages) await delay(50);
+						
+						const before = oldestMessageTime;
+						await loadOlderMessages();
+						loadedMore = true;
+						
+						target = find();
+						
+						if (oldestMessageTime === before) {
+							stalls++;
+							if (stalls >= 3) break;
+						} else {
+							stalls = 0;
+						}
+					}
+				} else if (direction === "newer") {
+					let stalls = 0;
+					
+					while (
+						!target &&
+						hasNewerMessages &&
+						newestMessageTime !== null &&
+						newestMessageTime < ts
+					) {
+						if (roomAtStart !== currentRoom) return false;
+						
+						while (loadingNewerMessages) await delay(50);
+						
+						const before = newestMessageTime;
+						await loadNewerMessages();
+						loadedMore = true;
+						
+						target = find();
+						
+						if (newestMessageTime === before) {
+							stalls++;
+							if (stalls >= 3) break;
+						} else {
+							stalls = 0;
+						}
+					}
 				}
 			}
 		} finally {
@@ -1415,9 +1661,15 @@ function updateSenderNameVisibility(div) {
 	div.style.marginTop = shouldShow ? "5px" : "1px";
 }
 
-window.scrollToBottomF = function() {
+window.scrollToBottomF = async function() {
 	const cont = GE("messages");
 	if (!cont) return;
+	
+	// Viewing an old chunk: skip all chunks in the middle and show the newest one
+	if (hasNewerMessages) {
+		await jumpToLatest();
+		return;
+	}
 	
 	requestAnimationFrame(() => {
 		cont.scrollTo({
@@ -1566,9 +1818,13 @@ async function startMessageListener(messageRef, inspecting=false) {
 	oldestMessageTime = null;
 	newestMessageTime = null;
 	loadingOlderMessages = false;
+	loadingNewerMessages = false;
 	hasMoreMessages = true;
-	
-	renderMessage = async function(messageId, message, prepend=false) {
+	hasNewerMessages = false;
+	switchingWindow = false;
+	windowEpoch++;
+
+	renderMessage =async function(messageId, message, prepend=false) {
 		if (!message) return;
 		if (message.deleted && !CACHE.hacker) return;
 		if (cont.querySelector(`[data-message-id="${messageId}"]`)) return;
@@ -1581,6 +1837,8 @@ async function startMessageListener(messageRef, inspecting=false) {
 				scheduledTimers.set(messageId, setTimeout(async function() {
 					scheduledTimers.delete(messageId);
 					if (roomAtSchedule !== currentRoom || !currentUser) return;
+					// viewing an old chunk: it gets loaded when we reach the latest messages again
+					if (hasNewerMessages) return;
 					
 					const fresh = await fetch(roomAtSchedule + "/messages/" + messageId);
 					if (!fresh || roomAtSchedule !== currentRoom) return;
@@ -1594,9 +1852,10 @@ async function startMessageListener(messageRef, inspecting=false) {
 			return;
 		}
 		
-		if (renderingInProgress.has(messageId)) return;
-		renderingInProgress.add(messageId);
-		
+		// (the DOM check above is enough: nothing here awaits before the node is inserted,
+		// and a permanent "in progress" set would stop messages from re-rendering after the
+		// view jumps to a different chunk)
+
 		const div = CE("div");
 		
 		let lastUser = null;
@@ -2119,11 +2378,17 @@ async function startMessageListener(messageRef, inspecting=false) {
 		newMessageQuery,
 		async function(snapshot) {
 			const message = snapshot.val();
-			
+
 			if (!message) {
 				return;
 			}
-			
+
+			// viewing an old chunk: don't append live messages after a gap.
+			// They are fetched when we scroll/jump back to the latest.
+			if (hasNewerMessages) {
+				return;
+			}
+
 			const exists =
 				cont.querySelector(
 					`[data-message-id="${snapshot.key}"]`
@@ -2205,13 +2470,17 @@ async function startMessageListener(messageRef, inspecting=false) {
 				return;
 			}
 
+			// not on screen: only render it if it belongs to the loaded window
+			if (hasNewerMessages) return;
+			if (oldestMessageTime !== null && message.tstamp < oldestMessageTime) return;
+
 			await renderMessage(
 				snapshot.key,
 				message
 			);
 		}
 	);
-	
+
 	stopMessageListener = function() {
 		if (messageListener) {
 			messageListener();
