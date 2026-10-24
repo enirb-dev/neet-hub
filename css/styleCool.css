@@ -80,7 +80,8 @@
 	--message-own: #30250c;
 
 	--message-border: rgba(255, 215, 120, 0.065);
-
+	--message-border-dark: rgba(255, 215, 120, 0.1);
+	
 
 	/* ───────────── Inputs ───────────── */
 
@@ -781,18 +782,17 @@ input:focus {
    ========================================================= */
 
 .message,
+.messageS,
 .messageCompressed {
 	position: relative;
-
 	padding: 11px 13px;
-
+	
 	margin-top: 7px;
 	margin-bottom: 7px;
-
+	
 	border: 1px solid var(--message-border);
-
 	border-radius: 12px;
-
+	
 	background:
 		linear-gradient(
 			145deg,
@@ -800,29 +800,28 @@ input:focus {
 			transparent 45%
 		),
 		var(--message);
-
 	color: var(--text);
-
+	
 	box-shadow:
 		0 3px 12px rgba(0, 0, 0, 0.18),
 		inset 0 1px 0 rgba(255, 255, 255, 0.025);
-
 	overflow-wrap: anywhere;
-
 	animation: messageIn 0.25s ease-out;
 }
 
+.messageS {
+	border: 1px solid var(--message-border-dark);	
+}
 
 /* Sender name */
 
 .message b,
+.messageS b,
 .messageCompressed b {
 	display: block;
-
 	margin-bottom: 3px;
-
 	color: var(--primary-hover);
-
+	
 	font-size: 13px;
 }
 

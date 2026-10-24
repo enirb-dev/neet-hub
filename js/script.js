@@ -996,6 +996,7 @@ async function sendFile(file, options=["📷 Image", "image"], replyingTo=null) 
 		
 		try {
 			console.log("Starting upload:", file.name);
+			let time = Date.now();
 			
 			const uploadResult = await uploadToDrive(file);
 			
@@ -1007,7 +1008,7 @@ async function sendFile(file, options=["📷 Image", "image"], replyingTo=null) 
 				senderName: currentUsername,
 				type: options[1],
 				data: fURL,
-				tstamp: Date.now(),
+				tstamp: time,
 				time: Math.floor(Date.now() / 1000),
 				seenBy: [currentUser.uid],
 				replyingTo: replyingTo,
@@ -1615,7 +1616,7 @@ async function startMessageListener(messageRef, inspecting=false) {
 			div.dataset.messageId = messageId;
 			div.dataset.senderName = "";
 			
-			// Non-manipulable, not right-clickable
+			// non-manipulable, not right-clickable
 			div.addEventListener("contextmenu", function(e) {
 				e.preventDefault();
 				e.stopPropagation();
@@ -2578,6 +2579,73 @@ function updateSelectedFilesUI() {
 }
 
 const mFileEl = GE("messageFile"); if (mFileEl) mFileEl.addEventListener("change", updateSelectedFilesUI);
+
+// ---------------------------------------------------------------
+// Ctrl+V image paste
+//
+// Only images are accepted. If the clipboard holds any other file
+// (video, audio, documents, binaries, archives ...) the whole paste
+// is refused. Plain text pastes are left alone so typing still works.
+// The pasted image is attached like a picked file (shows in the file
+// indicator, can be cleared) and goes out when you press Send/Enter.
+// ---------------------------------------------------------------
+
+document.addEventListener("paste", function(event) {
+	if (!currentUser || !currentRoom || CACHE.inspecting) return;
+
+	const fileEl = GE("messageFile");
+	const msgInput = GE("messageInput");
+	if (!fileEl || !msgInput || msgInput.disabled || fileEl.disabled) return;
+
+	// don't hijack paste inside other inputs (dialogs, room creation, login ...)
+	const t = event.target;
+	if (t && t.closest && t !== msgInput && t.closest("input, textarea, [contenteditable='true']")) return;
+
+	// only while the chat page is visible
+	const chat = GE("chatPage");
+	if (!chat || chat.hidden || chat.style.display === "none") return;
+
+	const items = Array.from(event.clipboardData?.items || []);
+	const fileItems = items.filter(it => it.kind === "file");
+
+	// no files on the clipboard -> normal text paste
+	if (fileItems.length === 0) return;
+
+	// any non-image file (video, binary, document ...) -> not allowed
+	const allImages = fileItems.every(it => it.type && it.type.startsWith("image/"));
+	if (!allImages) {
+		event.preventDefault();
+		dialog("Only images can be pasted. Use the attach button for other files.", true);
+		return;
+	}
+
+	if (CACHE.recording) {
+		event.preventDefault();
+		dialog("Stop the recording before pasting an image.", true);
+		return;
+	}
+
+	const pasted = [];
+	fileItems.forEach(function(it, i) {
+		const f = it.getAsFile();
+		if (!f || !f.type.startsWith("image/")) return;
+
+		const ext = (f.type.split("/")[1] || "png").split("+")[0].replace("jpeg", "jpg");
+		pasted.push(new File([f], `pasted-${Date.now()}-${i}.${ext}`, { type: f.type }));
+	});
+
+	if (pasted.length === 0) return;
+	event.preventDefault();
+
+	// keep anything already selected, add the pasted images
+	const dt = new DataTransfer();
+	Array.from(fileEl.files || []).forEach(f => dt.items.add(f));
+	pasted.forEach(f => dt.items.add(f));
+	fileEl.files = dt.files;
+
+	updateSelectedFilesUI();
+	msgInput.focus();
+});
 
 // UPLOADER hoisted to top
 
