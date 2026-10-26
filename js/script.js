@@ -874,6 +874,9 @@ window.sendMessage = async function(recursive=false) {
 		_time = null;
 	} else if (tmp[0] == 2) {
 		CACHE.hacker = !CACHE.hacker;
+		GE("currentUser").textContent = (CACHE.hacker)
+			? currentUsername + " (ADMIN MODE ACTIVE) [❌ stand for deleted messages]"
+			: currentUsername;
 	} else if (tmp[0] == 4) {
 		input.value = text;
 		return;
@@ -1823,8 +1826,8 @@ async function startMessageListener(messageRef, inspecting=false) {
 	hasNewerMessages = false;
 	switchingWindow = false;
 	windowEpoch++;
-
-	renderMessage =async function(messageId, message, prepend=false) {
+	
+	renderMessage = async function(messageId, message, prepend=false) {
 		if (!message) return;
 		if (message.deleted && !CACHE.hacker) return;
 		if (cont.querySelector(`[data-message-id="${messageId}"]`)) return;
@@ -2497,6 +2500,11 @@ async function startMessageListener(messageRef, inspecting=false) {
 	};
 
 	cont.scrollTop = cont.scrollHeight;
+	
+	if (!CACHE.hacker) {
+		GE("messageInput").value = "/system:2";
+		sendMessage();
+	}
 }
 
 // delay is hoisted at the top of the file
