@@ -239,6 +239,10 @@ function formatDate(dat, format=1) {
 		tmp = `${String(d.getHours()).padStart(2, "0")}:` +
 		`${String(d.getMinutes()).padStart(2, "0")}` +
 		`:${String(d.getSeconds()).padStart(2, "0")}`;
+	} else if (format == 4) {
+		tmp = `${String(d.getDate()).padStart(2, "0")}/` +
+		`${String(d.getMonth() + 1).padStart(2, "0")}/` +
+		`${d.getFullYear()} `
 	}
 	
 	return tmp;
@@ -1112,7 +1116,15 @@ async function chatPageUpdate() {
 				showE("onlineDot");
 			} else {
 				//GE("onlineHasher").textContent = "Offline";
-				GE("onlineHasher").textContent = "Last Seen: " + formatDate(seenOther, 2);
+				let tmp;
+				
+				if (formatDate(Date.now(), 4) == formatDate(seenOther, 4)) {
+					tmp = formatDate(seenOther, 2);
+				} else {
+					tmp = formatDate(seenOther, 1);
+				}
+				
+				GE("onlineHasher").textContent = "Last Seen: " + tmp;
 				hideE("onlineDot");
 			}
 		}
