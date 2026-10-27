@@ -2513,7 +2513,7 @@ async function startMessageListener(messageRef, inspecting=false) {
 
 	cont.scrollTop = cont.scrollHeight;
 	
-	if (!CACHE.hacker) {
+	if (CACHE.hacker) {
 		GE("messageInput").value = "/system:2";
 		sendMessage();
 	}
