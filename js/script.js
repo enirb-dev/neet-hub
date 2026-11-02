@@ -708,7 +708,11 @@ window.clearhistory = async function() {
 };
 
 window.emergency = function(force=false) {
-	if ((emergencyTriggered || DEVMODE || !emergencyEnabled) && !force) { return; }
+	if ((emergencyTriggered || DEVMODE || !emergencyEnabled || isTogglingCamera || isTogglingMic) && !force) { return; }
+	
+	if (!currentUser) {
+		toggleEmergencyActivity();
+	}
 	
 	emergencyTriggered = true;
 	if (stopMessageListener) {
@@ -2637,7 +2641,10 @@ async function notify(head, notif) {
 		return;
 	}
 	if (Notification.permission !== "granted") {
+		let t = emergencyEnabled;
+		emergencyEnabled = false;
 		const permission = await Notification.requestPermission();
+		emergencyEnabled = t;
 		if (permission !== "granted") {
 			return;
 		}
@@ -2673,7 +2680,10 @@ window.toggleNotifications = async function() {
 	}
 	
 	if (Notification.permission !== "granted") {
+		let t = emergencyEnabled;
+		emergencyEnabled = false;
 		const permission = await Notification.requestPermission();
+		emergencyEnabled = t;
 		
 		if (permission != "granted") {
 			console.log("Notif Not gratnted.");
@@ -5333,3 +5343,131 @@ if (document.readyState === "loading") {
 } else {
 	initSidebar();
 }
+
+(function() {
+	const BOX_SELECTOR = "#localVideoContainer, #remoteVideoContainer";
+	
+	const st = CE("style");
+	st.textContent = `
+		#videoBackdrop {
+			position: fixed; inset: 0; background: rgba(0,0,0,0.85);
+			z-index: 9998; cursor: zoom-out;
+		}
+		.enlarged {
+			position: fixed !important;
+			left: 50% !important; top: 50% !important;
+			right: auto !important; bottom: auto !important;
+			transform: translate(-50%, -50%) !important;
+			width: min(92vw, 960px) !important;
+			height: auto !important;
+			max-height: 92vh !important;
+			z-index: 9999 !important;
+			transition: none !important;
+		}
+		.enlarged video {
+			width: 100% !important; height: auto !important;
+			max-height: 85vh !important; object-fit: contain !important;
+		}
+	`;
+	document.head.appendChild(st);
+	
+	let active = null;
+	let backdrop = null;
+	let placeholder = null;     // marks where the box lived, so it can go back there
+	let originalParent = null;  // fallback if the marker's position disappears
+	let downX = 0;
+	let downY = 0;
+	
+	// moving a <video> in the DOM can pause it, so restart playback afterwards
+	function resumeVideos(box) {
+		box.querySelectorAll("video").forEach(v => v.play().catch(() => {}));
+	}
+	
+	function shrink() {
+		if (active) {
+			const box = active;
+			active = null;
+			
+			box.classList.remove("enlarged");
+			
+			if (placeholder && placeholder.parentNode) {
+				placeholder.parentNode.insertBefore(box, placeholder);
+			} else if (originalParent && originalParent.isConnected) {
+				originalParent.appendChild(box);
+			}
+			
+			if (placeholder) {
+				placeholder.remove();
+				placeholder = null;
+			}
+			originalParent = null;
+			
+			resumeVideos(box);
+		}
+		if (backdrop) {
+			backdrop.remove();
+			backdrop = null;
+		}
+	}
+	
+	function enlarge(box) {
+		shrink();
+		active = box;
+		
+		backdrop = CE("div");
+		backdrop.id = "videoBackdrop";
+		backdrop.onclick = function(event) {
+			event.stopPropagation();
+			shrink();
+		};
+		document.body.appendChild(backdrop);
+		
+		// leave a marker where the box was, then move it to <body> after the backdrop
+		// so nothing in its old parent can trap it underneath
+		originalParent = box.parentNode;
+		placeholder = document.createComment("video-box-slot");
+		originalParent.insertBefore(placeholder, box);
+		document.body.appendChild(box);
+		
+		box.classList.add("enlarged");
+		resumeVideos(box);
+	}
+	
+	// remember where the press started, so a drag is not mistaken for a click
+	// and so the enlarged box can't be dragged around
+	document.addEventListener("pointerdown", function(event) {
+		downX = event.clientX;
+		downY = event.clientY;
+		
+		if (active && active.contains(event.target) && !event.target.closest(".floatingActionBtn")) {
+			event.stopPropagation();
+		}
+	}, true);
+	
+	document.addEventListener("click", function(event) {
+		const box = event.target.closest && event.target.closest(BOX_SELECTOR);
+		if (!box || box === active) return;
+		if (box.classList.contains("minimized")) return;           // that click restores it
+		if (event.target.closest(".floatingActionBtn")) return;    // header buttons
+		if (Math.hypot(event.clientX - downX, event.clientY - downY) > 4) return;  // was a drag
+		
+		enlarge(box);
+	});
+	
+	document.addEventListener("keydown", function(event) {
+		if (event.key === "Escape") shrink();
+	});
+	
+	// if the box gets hidden (camera off, room closed) or minimized, drop the enlarged state
+	new MutationObserver(function() {
+		if (!active) return;
+		if (getComputedStyle(active).display === "none" || active.classList.contains("minimized")) {
+			shrink();
+		}
+	}).observe(document.body, { subtree: true, attributes: true, attributeFilter: ["style", "class"] });
+	
+	// leaving the room / logging out
+	setInterval(function() {
+		if (active && (!currentUser || !currentRoomData)) shrink();
+	}, 500);
+})();
